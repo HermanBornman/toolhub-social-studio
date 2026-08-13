@@ -1,3 +1,2 @@
-import { ComingSoon } from "@/components/ComingSoon";
-export default function Page() { return <ComingSoon title="Settings" />; }
-
+import { redirect } from "next/navigation";import { AppShell } from "@/components/AppShell";import { SocialSettings } from "@/components/SocialSettings";import { getCurrentUser } from "@/lib/user-role";
+export default function Page(){if(getCurrentUser().role!=="ADMIN")redirect("/");return <AppShell title="Settings" subtitle="Manage Buffer connectivity and publishing channels."><SocialSettings/></AppShell>}

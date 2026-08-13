@@ -53,7 +53,13 @@ DRAFT → AWAITING_APPROVAL → APPROVED
 - APPROVED adverts are read-only for normal staff.
 - Every create, edit, submission, resubmission, review outcome, and product change writes an audit entry.
 
-No social publishing, OAuth, scheduling automation, analytics, Buffer, Meta integration, or IQ Retail integration is included in Phase 2. Calendar remains future scope.
+## Phase 3 social publishing
+
+Approved adverts can be scheduled by MARKETING, MANAGER, and ADMIN users. Publish Now, retry, cancel, reschedule, and provider-status sync are restricted to MANAGER and ADMIN. ADMIN users manage Buffer channels under Settings. Every delivery is split into one Buffer post per channel, retains a final immutable 1080 × 1350 PNG, records every attempt, and preserves successful channel IDs during retries.
+
+The safe default is `SOCIAL_PUBLISHING_MODE="dry-run"`. Dry-run uses deterministic Facebook and Instagram channels and never calls Buffer. Set `BUFFER_API_KEY`, `BUFFER_ORGANIZATION_ID`, Supabase variables, and explicitly select `live` only in a secured server environment. Buffer fetches image URLs at publishing time, so live mode requires a public Supabase bucket. Never expose service-role or Buffer keys to browser code.
+
+The Calendar provides month/week operational views and links to per-channel delivery details. Buffer does not offer webhooks in this integration, so managers can use Sync Status; scheduled statuses are also suitable for a future server cron without changing the data model.
 
 ## Validation
 

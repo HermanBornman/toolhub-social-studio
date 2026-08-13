@@ -1,0 +1,2 @@
+import { NextResponse } from "next/server";import { prisma } from "@/lib/prisma";
+export async function GET(_:Request,{params}:{params:Promise<{id:string}>}){const post=await prisma.socialPost.findUnique({where:{id:(await params).id},select:{finalArtworkData:true}});const match=post?.finalArtworkData?.match(/^data:([^;]+);base64,(.+)$/);if(!match)return NextResponse.json({error:"Artwork not found"},{status:404});return new NextResponse(Buffer.from(match[2],"base64"),{headers:{"Content-Type":match[1],"Cache-Control":"public, max-age=31536000, immutable"}});}

@@ -214,6 +214,7 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
           <span className={`status-badge ${status.toLowerCase()}`}>{status.replaceAll("_"," ")}</span>
           <button className="secondary-button" type="button" onClick={saveDraft} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING" || status==="AWAITING_APPROVAL" || status==="APPROVED"}>{saving ? <Loader2 className="spin" size={18} /> : <Save size={18} />} Save Draft</button>
           {(status==="DRAFT"||status==="CHANGES_REQUESTED")&&<button className="secondary-button submit-button" type="button" onClick={submitForApproval} disabled={saving||exporting||data.backgroundRemovalStatus!=="COMPLETE"}><Send size={18}/>{status==="CHANGES_REQUESTED"?"Resubmit for Approval":"Submit for Approval"}</button>}
+          {status==="APPROVED"&&draftId&&<Link className="primary-button" href={`/adverts/${draftId}/publish`}>Schedule / Publish</Link>}
           <button className="primary-button" type="button" onClick={exportPng} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING"}>{exporting ? <Loader2 className="spin" size={18} /> : <Download size={18} />} Export PNG</button>
         </div>
       </section>

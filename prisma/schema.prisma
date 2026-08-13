@@ -20,6 +20,7 @@ model User {
   createdProducts Product[]       @relation("ProductCreator")
   updatedProducts Product[]       @relation("ProductUpdater")
   auditLogs       AuditLog[]
+  socialPosts     SocialPost[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 }
@@ -101,6 +102,7 @@ model Advertisement {
   template                 Template?             @relation(fields: [templateId], references: [id])
   assets                   AdvertisementAsset[]
   auditLogs                AuditLog[]
+  socialPosts              SocialPost[]
   createdAt                DateTime              @default(now())
   updatedAt                DateTime              @updatedAt
 
@@ -156,10 +158,119 @@ model AuditLog {
   userId          String?
   userName        String?
   advertisementId String?
+  socialPostId     String?
   user             User?         @relation(fields: [userId], references: [id])
   advertisement    Advertisement? @relation(fields: [advertisementId], references: [id], onDelete: SetNull)
+  socialPost       SocialPost?     @relation(fields: [socialPostId], references: [id], onDelete: SetNull)
   createdAt        DateTime       @default(now())
 
   @@index([entityType, entityId])
   @@index([advertisementId, createdAt])
+  @@index([socialPostId, createdAt])
+}
+
+model ApplicationSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SocialChannel {
+  id                String              @id @default(cuid())
+  provider          String              @default("BUFFER")
+  providerChannelId String              @unique
+  organizationId    String
+  service           String
+  name              String
+  displayName       String?
+  connectedStatus   String              @default("UNKNOWN")
+  active            Boolean             @default(true)
+  publishingEnabled Boolean             @default(false)
+  metadata          String?
+  lastSyncedAt      DateTime?
+  postChannels      SocialPostChannel[]
+  attempts          PublishingAttempt[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([organizationId])
+  @@index([service])
+  @@index([active, publishingEnabled])
+}
+
+model SocialPost {
+  id                    String              @id @default(cuid())
+  idempotencyKey        String              @unique
+  advertisementId       String
+  caption               String
+  status                String              @default("DRAFT")
+  mode                  String              @default("SCHEDULE")
+  scheduledAt           DateTime?
+  timezone              String              @default("Africa/Johannesburg")
+  finalArtworkUrl       String
+  finalArtworkData      String?
+  finalArtworkCreatedAt DateTime             @default(now())
+  dryRun                Boolean              @default(true)
+  createdByUserId       String
+  publishedAt           DateTime?
+  advertisement         Advertisement       @relation(fields: [advertisementId], references: [id])
+  createdBy             User                @relation(fields: [createdByUserId], references: [id])
+  channels              SocialPostChannel[]
+  attempts              PublishingAttempt[]
+  auditLogs             AuditLog[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([advertisementId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model SocialPostChannel {
+  id                String        @id @default(cuid())
+  socialPostId      String
+  socialChannelId   String
+  status            String        @default("READY")
+  providerPostId    String?
+  providerStatus    String?
+  providerDueAt     DateTime?
+  providerResponse  String?
+  errorCode         String?
+  errorMessage      String?
+  attemptCount      Int           @default(0)
+  intendedSchedule DateTime?
+  socialPost        SocialPost    @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+  socialChannel     SocialChannel @relation(fields: [socialChannelId], references: [id])
+  attempts          PublishingAttempt[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([socialPostId, socialChannelId, intendedSchedule])
+  @@index([status])
+}
+
+model PublishingAttempt {
+  id                  String             @id @default(cuid())
+  socialPostId        String
+  socialPostChannelId String
+  channelId           String
+  attemptNumber       Int
+  action              String
+  requestedAt         DateTime           @default(now())
+  completedAt         DateTime?
+  success             Boolean?
+  provider            String             @default("BUFFER")
+  providerPostId      String?
+  errorCode           String?
+  errorMessage        String?
+  responseMetadata    String?
+  socialPost          SocialPost         @relation(fields: [socialPostId], references: [id], onDelete: Cascade)
+  socialPostChannel   SocialPostChannel  @relation(fields: [socialPostChannelId], references: [id], onDelete: Cascade)
+  channel             SocialChannel      @relation(fields: [channelId], references: [id])
+
+  @@index([socialPostId, requestedAt])
+  @@index([socialPostChannelId, attemptNumber])
 }

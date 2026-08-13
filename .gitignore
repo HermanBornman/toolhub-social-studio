@@ -5,6 +5,7 @@ node_modules
 prisma/dev.db
 prisma/dev.db-journal
 prisma/dev.phase1-backup.db
+phase3-shadow.db
 coverage
 .test-dist
 *.log
