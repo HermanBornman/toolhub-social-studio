@@ -9,4 +9,5 @@ coverage
 *.log
 *.tsbuildinfo
 test-product.png
+phase1b-test-product.png
 .DS_Store

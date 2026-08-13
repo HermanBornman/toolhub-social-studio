@@ -13,6 +13,12 @@ test("blocks missing critical fields", () => {
 
 test("keeps approved moods data-driven and the template version locked", () => {
   assert.deepEqual(MASCOT_MOODS.map((mood) => mood.id), ["happy","excited","wow","wink","thumbs_up","smile"]);
+  assert.deepEqual(MASCOT_MOODS.map((mood) => mood.assetPath), ["/mascots/happy.png","/mascots/excited.png","/mascots/wow.png","/mascots/wink.png","/mascots/thumbs-up.png","/mascots/smile.png"]);
   assert.equal(TEMPLATE_VERSION, "TOOLHUB_SOCIAL_MASTER_V1");
 });
 
+test("rejects copy that exceeds the safe locked-template capacity", () => {
+  const result = advertSchema.safeParse({ ...TEST_ADVERT, productName: "X".repeat(61), productImage: "data:image/png;base64,abc" });
+  assert.equal(result.success, false);
+  assert.match(result.error.issues[0].message, /under 60 characters/);
+});

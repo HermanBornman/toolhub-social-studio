@@ -75,9 +75,14 @@ export function CreateAdvert() {
     setExporting(true); setNotice(null);
     try {
       await document.fonts.ready;
+      const bounds = canvasRef.current.getBoundingClientRect();
       const dataUrl = await toPng(canvasRef.current, {
-        width: 1080, height: 1350, canvasWidth: 1080, canvasHeight: 1350, pixelRatio: 1, cacheBust: true,
-        style: { width: "1080px", height: "1350px" },
+        width: bounds.width,
+        height: bounds.height,
+        canvasWidth: 1080,
+        canvasHeight: 1350,
+        pixelRatio: 1,
+        cacheBust: true,
       });
       const image = new Image();
       image.src = dataUrl;
@@ -159,4 +164,3 @@ export function CreateAdvert() {
     </div>
   );
 }
-

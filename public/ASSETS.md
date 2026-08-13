@@ -1,19 +1,19 @@
 # Approved asset drop locations
 
-The SVG files committed for Phase 1 are plainly labelled placeholders. They are not recreations of Toolhub, INGCO, or the Toolhub mascot artwork.
+Phase 1B uses only the approved PNG files below. If a file is absent, the application displays `Approved asset missing`; it never falls back to the historical placeholder artwork.
 
 Replace files in place using these exact paths so the renderer needs no code changes:
 
-- `public/brand/toolhub/logo-placeholder.svg` — approved Toolhub logo artwork
-- `public/brand/ingco/logo-placeholder.svg` — approved INGCO logo artwork
-- `public/mascots/happy.svg`
-- `public/mascots/excited.svg`
-- `public/mascots/wow.svg`
-- `public/mascots/wink.svg`
-- `public/mascots/thumbs-up.svg`
-- `public/mascots/smile.svg`
-- `public/templates/` — approved master reference artwork and future template assets
+- `public/brand/toolhub/toolhub-logo.png`
+- `public/brand/toolhub/toolhub-ingco-love-tools-lockup.png`
+- `public/brand/ingco/ingco-logo.png`
+- `public/mascots/happy.png`
+- `public/mascots/excited.png`
+- `public/mascots/wow.png`
+- `public/mascots/wink.png`
+- `public/mascots/thumbs-up.png`
+- `public/mascots/smile.png`
+- `public/templates/toolhub-social-master-v1.png` — approved visual source of truth
 - `public/products/` — optional reusable product cut-outs
 
-For the best result, supply logos and mascots as transparent SVG or transparent PNG files. Keep the listed filenames, or update only the data records in `lib/moods.ts` for deliberately versioned mascot filenames.
-
+Keep the exact filenames above. The renderer and mood data already reference them directly.

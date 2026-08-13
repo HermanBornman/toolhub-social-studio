@@ -2,12 +2,12 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 const moods = [
-  ["happy", "Happy", "/mascots/happy.svg"],
-  ["excited", "Excited", "/mascots/excited.svg"],
-  ["wow", "WOW", "/mascots/wow.svg"],
-  ["wink", "Wink", "/mascots/wink.svg"],
-  ["thumbs_up", "Thumbs Up", "/mascots/thumbs-up.svg"],
-  ["smile", "Smile", "/mascots/smile.svg"],
+  ["happy", "Happy", "/mascots/happy.png"],
+  ["excited", "Excited", "/mascots/excited.png"],
+  ["wow", "WOW", "/mascots/wow.png"],
+  ["wink", "Wink", "/mascots/wink.png"],
+  ["thumbs_up", "Thumbs Up", "/mascots/thumbs-up.png"],
+  ["smile", "Smile", "/mascots/smile.png"],
 ];
 
 async function main() {
@@ -23,4 +23,3 @@ async function main() {
 }
 
 main().finally(() => prisma.$disconnect());
-

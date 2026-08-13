@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { MASCOT_MOODS, type Mood } from "@/lib/moods";
+import { ApprovedImage } from "./ApprovedImage";
 
 export function MoodSelector({ value, onChange }: { value: Mood; onChange: (mood: Mood) => void }) {
   return (
@@ -8,7 +9,7 @@ export function MoodSelector({ value, onChange }: { value: Mood; onChange: (mood
         const selected = value === mood.id;
         return (
           <button type="button" role="radio" aria-checked={selected} className={`mood-card ${selected ? "selected" : ""}`} key={mood.id} onClick={() => onChange(mood.id)}>
-            <span className="mood-thumb"><img src={mood.thumbnailPath} alt="" /></span>
+            <span className="mood-thumb"><ApprovedImage src={mood.thumbnailPath} alt={`${mood.displayName} approved mascot`} /></span>
             <span>{mood.displayName}</span>
             {selected && <i><Check size={12} strokeWidth={3} /></i>}
           </button>
@@ -17,4 +18,3 @@ export function MoodSelector({ value, onChange }: { value: Mood; onChange: (mood
     </div>
   );
 }
-
