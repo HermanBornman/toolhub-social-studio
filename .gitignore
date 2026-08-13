@@ -10,4 +10,5 @@ coverage
 *.tsbuildinfo
 test-product.png
 phase1b-test-product.png
+public/test-product-upload.png
 .DS_Store

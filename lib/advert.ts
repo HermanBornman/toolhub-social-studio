@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Mood } from "./moods";
+import { BACKGROUND_REMOVAL_STATUSES, type BackgroundRemovalStatus } from "./product-image";
 
 export const TEMPLATE_VERSION = "TOOLHUB_SOCIAL_MASTER_V1";
 
@@ -40,7 +41,10 @@ export type AdvertFormData = {
   sellingPrice: string;
   disclaimer: string;
   moodId: Mood;
-  productImage: string;
+  originalImageUrl: string;
+  processedImageUrl: string;
+  backgroundRemovalStatus: BackgroundRemovalStatus;
+  useOriginalImage: boolean;
   qrUrl: string;
 };
 
@@ -57,7 +61,10 @@ export const TEST_ADVERT: AdvertFormData = {
   sellingPrice: "2499",
   disclaimer: "WHILE STOCKS LAST",
   moodId: "thumbs_up",
-  productImage: "",
+  originalImageUrl: "",
+  processedImageUrl: "",
+  backgroundRemovalStatus: "PENDING",
+  useOriginalImage: false,
   qrUrl: "https://www.toolhub.co.za",
 };
 
@@ -74,7 +81,18 @@ export const advertSchema = z.object({
   sellingPrice: z.coerce.number().int().positive("Selling Price must be greater than zero"),
   disclaimer: z.string().trim().max(50),
   moodId: z.enum(["happy", "excited", "wow", "wink", "thumbs_up", "smile"]),
-  productImage: z.string().min(1, "Product Image is required"),
+  originalImageUrl: z.string().min(1, "Product Image is required"),
+  processedImageUrl: z.string(),
+  backgroundRemovalStatus: z.enum(BACKGROUND_REMOVAL_STATUSES),
+  useOriginalImage: z.boolean(),
   qrUrl: z.string().url("Enter a valid QR URL"),
+}).superRefine((data, context) => {
+  const transparentReady = data.backgroundRemovalStatus === "COMPLETE" && data.processedImageUrl.startsWith("data:image/png;base64,");
+  if (!transparentReady && !data.useOriginalImage) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["originalImageUrl"],
+      message: "Background removal must complete before saving or exporting",
+    });
+  }
 });
-

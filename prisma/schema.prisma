@@ -48,6 +48,10 @@ model Advertisement {
   disclaimer             String               @default("WHILE STOCKS LAST")
   moodId                  String
   productImage           String
+  originalImageUrl       String               @default("")
+  processedImageUrl      String?
+  backgroundRemovalStatus String               @default("PENDING")
+  useOriginalImage       Boolean              @default(false)
   qrUrl                   String               @default("https://www.toolhub.co.za")
   templateVersion        String               @default("TOOLHUB_SOCIAL_MASTER_V1")
   status                  String               @default("DRAFT")
@@ -116,4 +120,3 @@ model AuditLog {
 
   @@index([entityType, entityId])
 }
-

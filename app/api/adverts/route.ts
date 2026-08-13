@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { advertSchema, TEMPLATE_VERSION } from "@/lib/advert";
 import { prisma } from "@/lib/prisma";
+import { selectProductImage } from "@/lib/product-image";
+import { canUseOriginalImage } from "@/lib/user-role";
 
 export async function POST(request: Request) {
   try {
@@ -9,6 +11,9 @@ export async function POST(request: Request) {
     if (!parsed.success) return NextResponse.json({ error: "Advert validation failed", issues: parsed.error.flatten().fieldErrors }, { status: 400 });
 
     const input = parsed.data;
+    if (input.useOriginalImage && !canUseOriginalImage()) {
+      return NextResponse.json({ error: "Only Marketing or Admin users may use the original product image" }, { status: 403 });
+    }
     const mood = await prisma.mascotMood.findUnique({ where: { id: input.moodId } });
     if (!mood?.active) return NextResponse.json({ error: "The selected mascot mood is not approved" }, { status: 400 });
     const template = await prisma.template.findUnique({ where: { version: TEMPLATE_VERSION } });
@@ -17,6 +22,7 @@ export async function POST(request: Request) {
       const created = await tx.advertisement.create({
         data: {
           ...input,
+          productImage: selectProductImage(input),
           sellingPrice: Math.round(input.sellingPrice),
           templateVersion: TEMPLATE_VERSION,
           status: "DRAFT",
@@ -33,4 +39,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unable to save the draft" }, { status: 500 });
   }
 }
-

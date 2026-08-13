@@ -7,6 +7,7 @@ import { AdvertPreview } from "./AdvertPreview";
 import { MoodSelector } from "./MoodSelector";
 import { advertSchema, CAMPAIGN_SUGGESTIONS, CAMPAIGN_TYPES, TEST_ADVERT, type AdvertFormData } from "@/lib/advert";
 import { formatZar } from "@/lib/format-price";
+import { validateProductImageUpload } from "@/lib/product-image";
 
 type Errors = Partial<Record<keyof AdvertFormData | "form", string>>;
 
@@ -20,6 +21,8 @@ export function CreateAdvert() {
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [imageStatusText, setImageStatusText] = useState("Upload product image");
+  const [canUseOriginal, setCanUseOriginal] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const setField = <K extends keyof AdvertFormData>(field: K, value: AdvertFormData[K]) => {
@@ -43,18 +46,54 @@ export function CreateAdvert() {
     setErrors((current) => ({ ...current, campaignType: undefined, campaignMessage: undefined }));
   };
 
-  const handleImage = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImage = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!(["image/png", "image/jpeg", "image/webp"] as string[]).includes(file.type)) {
-      setErrors((current) => ({ ...current, productImage: "Use a PNG, JPG, or WEBP image" })); return;
+    const validationError = validateProductImageUpload(file);
+    if (validationError) {
+      setErrors((current) => ({ ...current, originalImageUrl: validationError }));
+      setImageStatusText("Upload product image");
+      return;
     }
-    if (file.size > 8 * 1024 * 1024) {
-      setErrors((current) => ({ ...current, productImage: "Image must be smaller than 8 MB" })); return;
+
+    setErrors((current) => ({ ...current, originalImageUrl: undefined, form: undefined }));
+    setNotice(null);
+    setCanUseOriginal(false);
+    setImageStatusText("Uploading...");
+
+    const originalImageUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error("Unable to read the selected image"));
+      reader.readAsDataURL(file);
+    });
+
+    setData((current) => ({ ...current, originalImageUrl, processedImageUrl: "", backgroundRemovalStatus: "PROCESSING", useOriginalImage: false }));
+    setImageStatusText("Removing background...");
+
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const response = await fetch("/api/product-images/remove-background", { method: "POST", body: form });
+      const result = await response.json();
+      setCanUseOriginal(Boolean(result.canUseOriginal));
+      if (!response.ok || !result.processedImageUrl) throw new Error(result.error || "Background removal failed");
+      setData((current) => ({ ...current, processedImageUrl: result.processedImageUrl, backgroundRemovalStatus: "COMPLETE", useOriginalImage: false }));
+      setImageStatusText("Product image ready");
+    } catch {
+      setData((current) => ({ ...current, processedImageUrl: "", backgroundRemovalStatus: "FAILED", useOriginalImage: false }));
+      setImageStatusText("Background removal failed â€” use original image or upload another image");
+      setNotice({ type: "error", text: "Background removal failed â€” use original image or upload another image" });
+    } finally {
+      event.target.value = "";
     }
-    const reader = new FileReader();
-    reader.onload = () => setField("productImage", String(reader.result));
-    reader.readAsDataURL(file);
+  };
+
+  const toggleOriginalImage = () => {
+    setData((current) => ({ ...current, useOriginalImage: !current.useOriginalImage }));
+    setImageStatusText(data.useOriginalImage ? "Product image ready" : "Using original image");
+    setErrors((current) => ({ ...current, originalImageUrl: undefined, form: undefined }));
+    setNotice(null);
   };
 
   const saveDraft = async () => {
@@ -64,7 +103,7 @@ export function CreateAdvert() {
       const response = await fetch("/api/adverts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to save draft");
-      setNotice({ type: "success", text: `Draft saved · ${result.id.slice(0, 8).toUpperCase()}` });
+      setNotice({ type: "success", text: `Draft saved Â· ${result.id.slice(0, 8).toUpperCase()}` });
     } catch (error) {
       setNotice({ type: "error", text: error instanceof Error ? error.message : "Unable to save draft" });
     } finally { setSaving(false); }
@@ -87,12 +126,12 @@ export function CreateAdvert() {
       const image = new Image();
       image.src = dataUrl;
       await image.decode();
-      if (image.naturalWidth !== 1080 || image.naturalHeight !== 1350) throw new Error(`Export was ${image.naturalWidth} × ${image.naturalHeight}, expected 1080 × 1350`);
+      if (image.naturalWidth !== 1080 || image.naturalHeight !== 1350) throw new Error(`Export was ${image.naturalWidth} Ã— ${image.naturalHeight}, expected 1080 Ã— 1350`);
       const link = document.createElement("a");
       link.download = `${data.sku || "toolhub-advert"}.png`;
       link.href = dataUrl;
       link.click();
-      setNotice({ type: "success", text: "PNG exported at exactly 1080 × 1350 px." });
+      setNotice({ type: "success", text: "PNG exported at exactly 1080 Ã— 1350 px." });
     } catch (error) {
       setNotice({ type: "error", text: error instanceof Error ? error.message : "PNG export failed" });
     } finally { setExporting(false); }
@@ -137,11 +176,12 @@ export function CreateAdvert() {
 
         <div className="form-section">
           <div className="form-section-heading"><span>PRODUCT IMAGE</span><small>Original proportions are preserved.</small></div>
-          <label className={`upload-zone ${data.productImage ? "ready" : ""} ${errors.productImage ? "has-error" : ""}`}>
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImage} />
-            {data.productImage ? <><img src={data.productImage} alt="Product upload thumbnail" /><div><strong>Product image ready</strong><span>Click to replace · PNG, JPG, WEBP</span></div><ImagePlus size={22} /></> : <><div className="upload-icon"><UploadCloud size={25} /></div><div><strong>Upload product image *</strong><span>PNG, JPG or WEBP · max 8 MB</span></div></>}
+          <label className={`upload-zone ${data.originalImageUrl ? "ready" : ""} ${errors.originalImageUrl ? "has-error" : ""}`}>
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImage} disabled={data.backgroundRemovalStatus === "PROCESSING"} />
+            {data.originalImageUrl ? <><div className="upload-comparison"><figure><img src={data.originalImageUrl} alt="Original uploaded product" /><figcaption>Original upload</figcaption></figure>{data.processedImageUrl && <figure className="transparent-thumb"><img src={data.processedImageUrl} alt="Transparent processed product" /><figcaption>Transparent cut-out</figcaption></figure>}</div><div className="image-processing-copy"><strong>{imageStatusText}</strong><span>{data.backgroundRemovalStatus === "PROCESSING" ? "Keep this page open while the product is processed." : "Click to replace Â· PNG, JPG, WEBP"}</span></div>{data.backgroundRemovalStatus === "PROCESSING" ? <Loader2 className="spin" size={22} /> : <ImagePlus size={22} />}</> : <><div className="upload-icon"><UploadCloud size={25} /></div><div><strong>{imageStatusText} *</strong><span>PNG, JPG or WEBP Â· max 8 MB</span></div></>}
           </label>
-          {errors.productImage && <p className="standalone-error">{errors.productImage}</p>}
+          {canUseOriginal && data.originalImageUrl && data.backgroundRemovalStatus !== "PROCESSING" && <button className="image-fallback-button" type="button" onClick={toggleOriginalImage}>{data.useOriginalImage ? "Use transparent image" : "Use original image"}</button>}
+          {errors.originalImageUrl && <p className="standalone-error">{errors.originalImageUrl}</p>}
         </div>
 
         <div className="form-section">
@@ -151,13 +191,13 @@ export function CreateAdvert() {
 
         {notice && <div className={`notice ${notice.type}`} role="status">{notice.type === "success" ? <ShieldCheck size={17} /> : <span>!</span>}{notice.text}</div>}
         <div className="form-actions">
-          <button className="secondary-button" type="button" onClick={saveDraft} disabled={saving || exporting}>{saving ? <Loader2 className="spin" size={18} /> : <Save size={18} />} Save Draft</button>
-          <button className="primary-button" type="button" onClick={exportPng} disabled={saving || exporting}>{exporting ? <Loader2 className="spin" size={18} /> : <Download size={18} />} Export PNG</button>
+          <button className="secondary-button" type="button" onClick={saveDraft} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING"}>{saving ? <Loader2 className="spin" size={18} /> : <Save size={18} />} Save Draft</button>
+          <button className="primary-button" type="button" onClick={exportPng} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING"}>{exporting ? <Loader2 className="spin" size={18} /> : <Download size={18} />} Export PNG</button>
         </div>
       </section>
 
       <aside className="preview-panel">
-        <div className="preview-heading"><div><span className="section-kicker">LIVE PREVIEW</span><h2>1080 × 1350</h2></div><div className="locked-pill"><LockKeyhole size={13} /> Layout locked</div></div>
+        <div className="preview-heading"><div><span className="section-kicker">LIVE PREVIEW</span><h2>1080 Ã— 1350</h2></div><div className="locked-pill"><LockKeyhole size={13} /> Layout locked</div></div>
         <AdvertPreview data={data} canvasRef={canvasRef} />
         <div className="preview-note"><ShieldCheck size={18} /><p><strong>Brand-safe by default.</strong><br />Logos, mascot, price, QR, fonts, and colours stay in approved positions.</p></div>
       </aside>

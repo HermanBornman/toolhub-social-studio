@@ -3,11 +3,13 @@ import { QRCodeSVG } from "qrcode.react";
 import type { AdvertFormData } from "@/lib/advert";
 import { formatZar } from "@/lib/format-price";
 import { MASCOT_MOODS } from "@/lib/moods";
+import { selectProductImage } from "@/lib/product-image";
 import { ApprovedImage } from "./ApprovedImage";
 
 export function AdvertPreview({ data, canvasRef }: { data: AdvertFormData; canvasRef: RefObject<HTMLDivElement | null> }) {
   const mood = MASCOT_MOODS.find((item) => item.id === data.moodId) ?? MASCOT_MOODS[0];
   const qrValue = /^https?:\/\//.test(data.qrUrl) ? data.qrUrl : "https://www.toolhub.co.za";
+  const productImage = selectProductImage(data);
 
   return (
     <div className="advert-frame">
@@ -37,8 +39,8 @@ export function AdvertPreview({ data, canvasRef }: { data: AdvertFormData; canva
           </div>
         </section>
 
-        <div className={`product-stage ${data.productImage ? "has-image" : ""}`}>
-          {data.productImage ? <img src={data.productImage} alt="Uploaded product" /> : <div className="product-placeholder"><span>PLACE PRODUCT IMAGE HERE</span></div>}
+        <div className={`product-stage ${productImage ? "has-image" : ""}`}>
+          {productImage ? <img src={productImage} alt={data.useOriginalImage ? "Original uploaded product" : "Background-removed product cut-out"} /> : <div className="product-placeholder"><span>{data.backgroundRemovalStatus === "PROCESSING" ? "REMOVING BACKGROUNDâ€¦" : "PLACE PRODUCT IMAGE HERE"}</span></div>}
         </div>
 
         <div className="price-panel"><span>SELLING PRICE</span><strong>{formatZar(data.sellingPrice)}</strong><small>{data.disclaimer || "WHILE STOCKS LAST"}</small></div>
