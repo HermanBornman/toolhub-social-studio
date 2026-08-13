@@ -14,48 +14,27 @@ Internal Toolhub application for creating consistent, approved social-media prod
 
 ## Phase 1: Toolhub Ad Creator V1
 
-The first milestone will build:
-
-- Toolhub-branded application shell
-- Create Advert form
-- locked master-template renderer
-- product image upload and fitting
-- mascot mood selector
-- South African Rand price formatting
-- working QR code generation
-- live advert preview
-- PNG export at 1080 × 1350
-- Save Draft capability
+The first milestone includes a branded dashboard, locked advert renderer, product image upload, mascot mood selector, South African Rand price formatting, QR generation, live preview, exact-size PNG export, and draft persistence.
 
 ## Core rule
 
 **Staff enter the product information; the software controls the design.**
 
-Normal staff users must not be able to move logos, change brand colours, freely resize elements or create arbitrary layouts.
+## Local development
+
+```bash
+npm install
+npm run db:setup
+npm run dev
+```
+
+Open http://localhost:3000.
+
+## Brand assets
+
+See [`public/ASSETS.md`](public/ASSETS.md) for the exact replacement paths for approved Toolhub, INGCO, template, product, and mascot artwork.
 
 ## Master template version
 
 `TOOLHUB_SOCIAL_MASTER_V1`
 
-## Planned stack
-
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-- Prisma
-- PostgreSQL
-
-## Future phases
-
-1. Product library
-2. Approval workflow
-3. Social-media calendar
-4. Buffer/social publishing integration
-5. Automated daily publishing
-6. Reporting and analytics
-7. Future IQ Retail integration
-
-## Status
-
-Repository initialized and ready for Codex development.

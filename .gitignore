@@ -1,0 +1,12 @@
+node_modules
+.npm-cache
+.next
+.env
+prisma/dev.db
+prisma/dev.db-journal
+coverage
+.test-dist
+*.log
+*.tsbuildinfo
+test-product.png
+.DS_Store
