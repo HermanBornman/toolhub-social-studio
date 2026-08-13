@@ -11,4 +11,6 @@ coverage
 test-product.png
 phase1b-test-product.png
 public/test-product-upload.png
+public/test-original-product.png
+public/test-processed-product.png
 .DS_Store
