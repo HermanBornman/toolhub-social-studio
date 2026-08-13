@@ -29,6 +29,7 @@ export const CAMPAIGN_SUGGESTIONS: Record<(typeof CAMPAIGN_TYPES)[number], strin
 };
 
 export type AdvertFormData = {
+  productId?: string;
   productName: string;
   sku: string;
   primarySpecification: string;
@@ -49,6 +50,7 @@ export type AdvertFormData = {
 };
 
 export const TEST_ADVERT: AdvertFormData = {
+  productId: undefined,
   productName: "20V CORDLESS DRILL KIT",
   sku: "TEST-CIDLI20",
   primarySpecification: "2 x 2.0Ah BATTERIES + CHARGER",
@@ -69,6 +71,7 @@ export const TEST_ADVERT: AdvertFormData = {
 };
 
 export const advertSchema = z.object({
+  productId: z.string().optional(),
   productName: z.string().trim().min(1, "Product Name is required").max(60, "Keep Product Name under 60 characters"),
   sku: z.string().trim().min(1, "SKU is required").max(32),
   primarySpecification: z.string().trim().min(1, "Primary Specification is required").max(70),

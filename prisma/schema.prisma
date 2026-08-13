@@ -8,66 +8,105 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  name      String
-  role      String     @default("STAFF")
-  adverts   Advertisement[]
-  auditLogs AuditLog[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id              String          @id
+  email           String          @unique
+  name            String
+  role            String          @default("STAFF")
+  createdAdverts  Advertisement[] @relation("AdvertCreator")
+  editedAdverts   Advertisement[] @relation("AdvertEditor")
+  submittedAdverts Advertisement[] @relation("AdvertSubmitter")
+  approvedAdverts Advertisement[] @relation("AdvertApprover")
+  rejectedAdverts Advertisement[] @relation("AdvertRejector")
+  createdProducts Product[]       @relation("ProductCreator")
+  updatedProducts Product[]       @relation("ProductUpdater")
+  auditLogs       AuditLog[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }
 
 model Product {
-  id                     String          @id @default(cuid())
-  name                   String
-  sku                    String          @unique
-  primarySpecification   String
-  secondarySpecification String?
-  feature01              String?
-  feature02              String?
-  keyBenefit             String?
-  imagePath              String?
-  adverts                Advertisement[]
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  id                       String          @id @default(cuid())
+  sku                      String          @unique
+  barcode                  String?
+  brand                    String          @default("INGCO")
+  productName              String
+  category                 String          @default("Tools")
+  primarySpecification     String
+  secondarySpecification   String?
+  feature01                String?
+  feature02                String?
+  keyBenefit               String?
+  normalPrice              Int?
+  currentPrice             Int
+  websiteUrl               String?
+  originalImageUrl         String          @default("")
+  processedImageUrl        String?
+  backgroundRemovalStatus  String          @default("PENDING")
+  active                   Boolean         @default(true)
+  createdByUserId          String?
+  updatedByUserId          String?
+  createdBy                User?           @relation("ProductCreator", fields: [createdByUserId], references: [id])
+  updatedBy                User?           @relation("ProductUpdater", fields: [updatedByUserId], references: [id])
+  adverts                  Advertisement[]
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  @@index([productName])
+  @@index([barcode])
+  @@index([brand])
+  @@index([category])
+  @@index([active])
 }
 
 model Advertisement {
-  id                     String               @id @default(cuid())
-  productName            String
-  sku                    String
-  primarySpecification   String
-  secondarySpecification String?
-  feature01              String?
-  feature02              String?
-  keyBenefit             String?
-  campaignType           String
-  campaignMessage        String
-  sellingPrice           Int
-  disclaimer             String               @default("WHILE STOCKS LAST")
-  moodId                  String
-  productImage           String
-  originalImageUrl       String               @default("")
-  processedImageUrl      String?
-  backgroundRemovalStatus String               @default("PENDING")
-  useOriginalImage       Boolean              @default(false)
-  qrUrl                   String               @default("https://www.toolhub.co.za")
-  templateVersion        String               @default("TOOLHUB_SOCIAL_MASTER_V1")
-  status                  String               @default("DRAFT")
-  authorId                String?
-  productId               String?
-  templateId              String?
-  author                  User?                @relation(fields: [authorId], references: [id])
-  product                 Product?             @relation(fields: [productId], references: [id])
-  mood                    MascotMood            @relation(fields: [moodId], references: [id])
-  template                Template?             @relation(fields: [templateId], references: [id])
-  assets                  AdvertisementAsset[]
-  auditLogs               AuditLog[]
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
+  id                       String               @id @default(cuid())
+  productId                String?
+  createdByUserId          String               @default("dev-staff-1")
+  lastEditedByUserId       String               @default("dev-staff-1")
+  productName              String
+  sku                      String
+  primarySpecification     String
+  secondarySpecification   String?
+  feature01                String?
+  feature02                String?
+  keyBenefit               String?
+  campaignType             String
+  campaignMessage          String
+  sellingPrice             Int
+  disclaimer               String               @default("WHILE STOCKS LAST")
+  moodId                    String
+  productImage             String
+  originalImageUrl         String               @default("")
+  processedImageUrl        String?
+  backgroundRemovalStatus  String               @default("PENDING")
+  useOriginalImage         Boolean              @default(false)
+  qrUrl                    String               @default("https://www.toolhub.co.za")
+  templateVersion          String               @default("TOOLHUB_SOCIAL_MASTER_V1")
+  status                   String               @default("DRAFT")
+  submittedAt              DateTime?
+  submittedByUserId        String?
+  approvedAt               DateTime?
+  approvedByUserId         String?
+  rejectedAt               DateTime?
+  rejectedByUserId         String?
+  approvalComment          String?
+  templateId               String?
+  product                  Product?             @relation(fields: [productId], references: [id])
+  createdBy                User                 @relation("AdvertCreator", fields: [createdByUserId], references: [id])
+  lastEditedBy             User                 @relation("AdvertEditor", fields: [lastEditedByUserId], references: [id])
+  submittedBy              User?                @relation("AdvertSubmitter", fields: [submittedByUserId], references: [id])
+  approvedBy               User?                @relation("AdvertApprover", fields: [approvedByUserId], references: [id])
+  rejectedBy               User?                @relation("AdvertRejector", fields: [rejectedByUserId], references: [id])
+  mood                     MascotMood            @relation(fields: [moodId], references: [id])
+  template                 Template?             @relation(fields: [templateId], references: [id])
+  assets                   AdvertisementAsset[]
+  auditLogs                AuditLog[]
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
 
   @@index([status])
+  @@index([createdByUserId])
+  @@index([submittedAt])
   @@index([createdAt])
 }
 
@@ -112,11 +151,15 @@ model AuditLog {
   entityType      String
   entityId        String
   metadata        String?
+  previousStatus  String?
+  newStatus       String?
   userId          String?
+  userName        String?
   advertisementId String?
   user             User?         @relation(fields: [userId], references: [id])
   advertisement    Advertisement? @relation(fields: [advertisementId], references: [id], onDelete: SetNull)
   createdAt        DateTime       @default(now())
 
   @@index([entityType, entityId])
+  @@index([advertisementId, createdAt])
 }

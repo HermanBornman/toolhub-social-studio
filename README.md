@@ -1,41 +1,8 @@
 # Toolhub Social Media Studio
 
-Internal Toolhub application for creating consistent, approved social-media product adverts from a locked master template.
+Internal Toolhub production system for brand-safe 1080 × 1350 product adverts. Phase 2 adds a reusable product library and manager approval workflow while preserving the approved Phase 1 renderer, assets, automatic background removal, QR generation, Rand formatting, and PNG export.
 
-## Project goals
-
-- Allow staff to create Toolhub product adverts from structured fields rather than free-form design.
-- Preserve the approved Toolhub/INGCO master layout and brand rules.
-- Support approved mascot moods such as Happy, Excited, WOW, Wink, Thumbs Up and Smile.
-- Generate high-quality 1080 Ã— 1350 social-media artwork.
-- Add product data, selling price, specifications, QR code and campaign messaging.
-- Save drafts and route adverts through approval before publishing.
-- Add social-media scheduling and publishing integrations in later phases.
-
-## Phase 1: Toolhub Ad Creator V1
-
-The first milestone includes a branded dashboard, locked advert renderer, product image upload, mascot mood selector, South African Rand price formatting, QR generation, live preview, exact-size PNG export, and draft persistence.
-
-### Automatic product cut-outs
-
-Product uploads are sent to the server and processed by the [remove.bg API](https://www.remove.bg/api). The API key is never exposed to browser code. remove.bg returns a cropped PNG with alpha transparency; the locked renderer preserves its aspect ratio and adds only a subtle CSS shadow.
-
-Required environment variables:
-
-```bash
-REMOVE_BG_API_KEY="your-remove-bg-api-key"
-TOOLHUB_USER_ROLE="STAFF" # STAFF, MARKETING, or ADMIN
-```
-
-The app accepts JPG, PNG, and WebP files up to 8 MB. It retains the original data URL and the processed PNG separately, together with a `PENDING`, `PROCESSING`, `COMPLETE`, or `FAILED` status. Normal staff may save/export only after processing reaches `COMPLETE`. Marketing and Admin users may explicitly choose **Use original image** if segmentation quality is poor.
-
-remove.bg charges by image/credit according to the account plan (full-resolution removal is generally one credit). When the account has no remaining quota, or the service is unavailable, the UI shows a failure state and requires another upload; only the role-gated original-image fallback bypasses processing. No generative reconstruction is performed.
-
-## Core rule
-
-**Staff enter the product information; the software controls the design.**
-
-## Local development
+## Local setup
 
 ```bash
 npm install
@@ -43,12 +10,55 @@ npm run db:setup
 npm run dev
 ```
 
-Open http://localhost:3000.
+`db:setup` generates the Prisma client, safely synchronizes the SQLite development schema, and seeds approved moods, the locked template, four development users, and `TEST-CIDLI20`. A Phase 2 Prisma migration is retained under `prisma/migrations`; the existing Phase 1 development database should be backed up before applying schema changes outside this workflow.
 
-## Brand assets
+## Development user and role
 
-See [`public/ASSETS.md`](public/ASSETS.md) for the exact replacement paths for approved Toolhub, INGCO, template, product, and mascot artwork.
+Authentication is centralized behind `getCurrentUser()`, `requireRole()`, `canEditAdvert()`, and `canApproveAdvert()` so Auth.js can replace the environment-backed session later.
 
-## Master template version
+```env
+TOOLHUB_USER_ROLE="STAFF"
+TOOLHUB_USER_NAME="Toolhub Staff"
+TOOLHUB_USER_ID="dev-staff-1"
+```
 
-`TOOLHUB_SOCIAL_MASTER_V1`
+Seeded identities:
+
+- `dev-staff-1` — Toolhub Staff — STAFF
+- `dev-marketing-1` — Toolhub Marketing — MARKETING
+- `dev-manager-1` — Toolhub Manager — MANAGER
+- `dev-admin-1` — Toolhub Admin — ADMIN
+
+Restart the development server after changing environment variables.
+
+## Product workflow
+
+Products retain searchable SKU, barcode, brand, category, prices, specifications, original image, processed transparent PNG, and active state. Duplicate SKUs return the existing product instead of creating another. Inactive products remain available historically but are excluded from Create Advert search by default.
+
+Selecting a product copies its values into a new Advertisement snapshot. Later product edits never modify historical adverts. A valid stored processed PNG is reused without calling remove.bg again; replacement images run the existing removal process once and update the Product record.
+
+## Approval workflow
+
+```text
+DRAFT → AWAITING_APPROVAL → APPROVED
+                         ↘ CHANGES_REQUESTED → AWAITING_APPROVAL
+                         ↘ REJECTED
+```
+
+- STAFF edits their own drafts and requested changes.
+- MARKETING can review/edit production copy and submit.
+- MANAGER and ADMIN can approve, request changes, or reject.
+- Request Changes and Reject require comments.
+- Creators and submitters cannot approve their own advert.
+- APPROVED adverts are read-only for normal staff.
+- Every create, edit, submission, resubmission, review outcome, and product change writes an audit entry.
+
+No social publishing, OAuth, scheduling automation, analytics, Buffer, Meta integration, or IQ Retail integration is included in Phase 2. Calendar remains future scope.
+
+## Validation
+
+```bash
+npm test
+npm run typecheck
+npm run build
+```

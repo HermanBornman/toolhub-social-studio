@@ -1,45 +1,14 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, CheckCircle2, Clock3, FilePenLine, Plus, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock3, FilePenLine, Package, Plus, RefreshCw, ShieldCheck } from "lucide-react";
+import { prisma } from "@/lib/prisma"; import { getCurrentUser, canReviewAdvert } from "@/lib/user-role"; import { formatZar } from "@/lib/format-price";
 
-const metrics = [
-  { label: "Draft adverts", value: "0", note: "Ready to continue", icon: FilePenLine },
-  { label: "Awaiting approval", value: "0", note: "Nothing pending", icon: Clock3 },
-  { label: "Approved", value: "0", note: "This month", icon: CheckCircle2 },
-  { label: "Scheduled", value: "0", note: "Publishing in Phase 2", icon: CalendarDays },
-];
-
-export function Dashboard() {
-  return (
-    <div className="dashboard-grid">
-      <section className="hero-panel">
-        <div>
-          <span className="section-kicker">TOOLHUB AD CREATOR V1</span>
-          <h2>Build the advert.<br /><em>Keep the brand.</em></h2>
-          <p>Create polished product artwork from structured fields. Every logo, colour, type style, and layout position stays approved and consistent.</p>
-          <Link href="/create" className="primary-button"><Plus size={20} /> Create new advert <ArrowRight size={18} /></Link>
-        </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="poster-mini"><b>#LoveTools</b><span>YOUR PRODUCT</span><strong>R2 499</strong><i /></div>
-          <div className="orange-orbit" />
-        </div>
-      </section>
-      <section className="metrics-grid">
-        {metrics.map(({ label, value, note, icon: Icon }) => (
-          <article className="metric-card" key={label}><div className="metric-icon"><Icon size={20} /></div><span>{label}</span><strong>{value}</strong><small>{note}</small></article>
-        ))}
-      </section>
-      <section className="activity-panel panel">
-        <div className="panel-heading"><div><span className="section-kicker">RECENT ACTIVITY</span><h3>Your latest adverts</h3></div></div>
-        <div className="empty-state"><div className="empty-icon"><FilePenLine size={28} /></div><h4>No adverts yet</h4><p>Your saved drafts will appear here.</p><Link href="/create">Create your first advert <ArrowRight size={15} /></Link></div>
-      </section>
-      <aside className="rules-panel panel">
-        <ShieldCheck size={28} />
-        <span className="section-kicker">LOCKED BY DESIGN</span>
-        <h3>Brand rules are built in.</h3>
-        <p>Staff enter product information. The software controls the design.</p>
-        <ul><li>Approved colours & typography</li><li>Fixed logo and QR positions</li><li>Approved mascot moods only</li><li>Exact 4:5 export</li></ul>
-      </aside>
-    </div>
-  );
+export async function Dashboard() {
+  const user=getCurrentUser(); const own=user.role==="STAFF"?{createdByUserId:user.id}:{};
+  const [drafts,awaiting,changes,approved,products,recent,activity]=await Promise.all([
+    prisma.advertisement.count({where:{...own,status:"DRAFT"}}),prisma.advertisement.count({where:{...own,status:"AWAITING_APPROVAL"}}),prisma.advertisement.count({where:{...own,status:"CHANGES_REQUESTED"}}),prisma.advertisement.count({where:{...own,status:"APPROVED"}}),prisma.product.count({where:{active:true}}),prisma.advertisement.findMany({where:own,orderBy:{updatedAt:"desc"},take:5}),prisma.auditLog.findMany({orderBy:{createdAt:"desc"},take:5})]);
+  const metrics=[{label:"Draft adverts",value:drafts,note:"Ready to continue",icon:FilePenLine},{label:"Awaiting approval",value:awaiting,note:"Manager review",icon:Clock3},{label:"Changes requested",value:changes,note:"Action needed",icon:RefreshCw},{label:"Approved",value:approved,note:"Production ready",icon:CheckCircle2},{label:"Products",value:products,note:"Active library",icon:Package}];
+  return <div className="dashboard-grid"><section className="hero-panel"><div><span className="section-kicker">TOOLHUB SOCIAL STUDIO</span><h2>Daily production.<br/><em>Brand controlled.</em></h2><p>Select a reusable product, create a snapshot advert, and send it through manager approval—all without changing the approved template.</p><div className="hero-actions"><Link href="/create" className="primary-button"><Plus size={20}/> Create Advert</Link><Link href="/products/new" className="secondary-button"><Package size={18}/> Add Product</Link>{canReviewAdvert(user.role)&&<Link href="/approvals" className="secondary-button"><ShieldCheck size={18}/> Review Approvals</Link>}</div></div><div className="hero-art" aria-hidden="true"><div className="poster-mini"><b>#LoveTools</b><span>YOUR PRODUCT</span><strong>R2 499</strong><i/></div><div className="orange-orbit"/></div></section>
+  <section className="metrics-grid phase2-metrics">{metrics.map(({label,value,note,icon:Icon})=><article className="metric-card" key={label}><div className="metric-icon"><Icon size={20}/></div><span>{label}</span><strong>{value}</strong><small>{note}</small></article>)}</section>
+  <section className="activity-panel panel"><div className="panel-heading"><span className="section-kicker">RECENT ADVERTS</span><h3>Your latest production</h3></div>{recent.length?<div className="recent-list">{recent.map(advert=><article key={advert.id}><div><strong>{advert.productName}</strong><span>{advert.sku} · {formatZar(advert.sellingPrice)}</span></div><span className={`status-badge ${advert.status.toLowerCase()}`}>{advert.status.replaceAll("_"," ")}</span><Link href={`/adverts/${advert.id}`}>{["DRAFT","CHANGES_REQUESTED"].includes(advert.status)?"Continue Editing":"View"} <ArrowRight size={14}/></Link></article>)}</div>:<div className="empty-state"><FilePenLine size={28}/><h4>No adverts yet</h4><p>Your saved drafts will appear here.</p></div>}</section>
+  <aside className="rules-panel panel"><ShieldCheck size={28}/><span className="section-kicker">RECENT ACTIVITY</span><h3>Accountability built in.</h3>{activity.length?<ul>{activity.map(item=><li key={item.id}>{item.userName||"System"} · {item.action.replaceAll("_"," ")}</li>)}</ul>:<p>Workflow events will appear here.</p>}</aside></div>;
 }
-
