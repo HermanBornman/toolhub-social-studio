@@ -1,6 +1,6 @@
 # Toolhub Social Media Studio
 
-Internal Toolhub production system for brand-safe 1080 × 1350 product adverts. Phase 2 adds a reusable product library and manager approval workflow while preserving the approved Phase 1 renderer, assets, automatic background removal, QR generation, Rand formatting, and PNG export.
+Internal Toolhub production system for brand-safe 1080 × 1350 product adverts. Phase 4 adds factual caption assistance, deterministic content planning, human-approved automated scheduling, and operational management reporting while preserving the approved renderer and Phase 1–3 workflows.
 
 ## Local setup
 
@@ -60,6 +60,52 @@ Approved adverts can be scheduled by MARKETING, MANAGER, and ADMIN users. Publis
 The safe default is `SOCIAL_PUBLISHING_MODE="dry-run"`. Dry-run uses deterministic Facebook and Instagram channels and never calls Buffer. Set `BUFFER_API_KEY`, `BUFFER_ORGANIZATION_ID`, Supabase variables, and explicitly select `live` only in a secured server environment. Buffer fetches image URLs at publishing time, so live mode requires a public Supabase bucket. Never expose service-role or Buffer keys to browser code.
 
 The Calendar provides month/week operational views and links to per-channel delivery details. Buffer does not offer webhooks in this integration, so managers can use Sync Status; scheduled statuses are also suitable for a future server cron without changing the data model.
+
+## Phase 4 AI caption assistant
+
+The publishing composer produces three structured caption options and supports a shared caption or separate Facebook and Instagram copy. Components never call the provider directly. The server validates structured output, injects the approved advert price, flags likely unsupported claims, records non-secret usage metadata, and falls back to predictable template copy on provider or schema failure.
+
+```env
+AI_MODE="mock"               # mock | live
+AI_PROVIDER="openai"
+AI_MODEL=""                  # required for live mode
+OPENAI_API_KEY=""            # server-side only
+```
+
+Mock mode is the test and development default and never calls OpenAI. For a controlled live test, configure a model and key in a secured server environment, use Settings → Test AI Connection as Admin, then generate captions for one approved advert. Caption generation never approves, schedules, or publishes content.
+
+Product fields are treated as untrusted data, not instructions. The assistant may use only stored product/advert facts and managed Toolhub hashtags. It must not invent warranty, technical, availability, delivery, discount, accessory, or stock claims. API keys and internal prompts are never returned to staff UI or written to audit metadata.
+
+## Content Planner and controlled automation
+
+The planner ranks only `APPROVED` adverts with deterministic, visible factors: recency, SKU/advert cooldowns, category and campaign balance, approval freshness, priority, limits, and campaign validity. Marketing and Managers may set priority/tags, pin items, generate weekly draft plans, replace or remove items, reorder them, change times, and edit platform captions. Unfilled slots remain gaps when repeat rules prevent safe reuse.
+
+```text
+PLANNING_DRAFT → AWAITING_PLAN_APPROVAL → PLAN_APPROVED → ACTIVATED
+                                      ↘ CANCELLED
+```
+
+The submitter cannot approve their own plan. Activation rechecks advert approval, channel availability, publishing permission, artwork, READY captions, future time, duplicates, conflicts, and campaign expiry for every item. Invalid items are blocked and audited without invalidating successful items.
+
+```env
+AUTO_SCHEDULING_MODE="manual" # manual | approved-plans-only
+```
+
+`manual` recommends schedules without invoking Buffer. `approved-plans-only` lets a Manager/Admin activate an explicitly approved plan made entirely from human-approved adverts. There is no autonomous advert approval or public posting mode.
+
+## Content strategy and reports
+
+Admin/Marketing configure per-platform weekly frequency, preferred weekdays/time, repeat cooldowns, campaign limits, balancing, and scheduling mode under Settings. Defaults are five weekday posts per channel at 09:00 in `Africa/Johannesburg`, with a 14-day SKU cooldown.
+
+Reports provides Today, 7-day, 30-day, month, and custom filters; approval throughput; publication status; channel reliability; retries; caption source; content mix; unique SKU counts; and repeat warnings from local records. It is labelled Publishing Performance because Phase 4 does not invent reach or engagement data. Dashboard intelligence covers next/upcoming content, approved supply, plan gaps, approvals, publishing issues, and repetition.
+
+## Phase 4 security and testing
+
+- Keep OpenAI, Buffer, and Supabase service-role credentials server-side and out of Git.
+- Run tests in `AI_MODE=mock` and `SOCIAL_PUBLISHING_MODE=dry-run`.
+- Use `AUTO_SCHEDULING_MODE=approved-plans-only` only for an explicit approved-plan activation test.
+- Never use production Buffer channels for a mock workflow.
+- Phase 4 excludes IQ Retail, stock/price sync, autonomous advert creation, paid ads, and deep engagement analytics.
 
 ## Validation
 

@@ -21,6 +21,10 @@ model User {
   updatedProducts Product[]       @relation("ProductUpdater")
   auditLogs       AuditLog[]
   socialPosts     SocialPost[]
+  createdPlans    ContentPlan[] @relation("PlanCreator")
+  submittedPlans  ContentPlan[] @relation("PlanSubmitter")
+  approvedPlans   ContentPlan[] @relation("PlanApprover")
+  captions        AdvertisementCaption[]
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 }
@@ -103,6 +107,12 @@ model Advertisement {
   assets                   AdvertisementAsset[]
   auditLogs                AuditLog[]
   socialPosts              SocialPost[]
+  planItems                ContentPlanItem[]
+  captions                 AdvertisementCaption[]
+  planningPriority         String               @default("NORMAL")
+  planningTags             String               @default("")
+  validFrom                DateTime?
+  validUntil               DateTime?
   createdAt                DateTime              @default(now())
   updatedAt                DateTime              @updatedAt
 
@@ -193,6 +203,7 @@ model SocialChannel {
   lastSyncedAt      DateTime?
   postChannels      SocialPostChannel[]
   attempts          PublishingAttempt[]
+  planItems         ContentPlanItem[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
@@ -221,6 +232,7 @@ model SocialPost {
   channels              SocialPostChannel[]
   attempts              PublishingAttempt[]
   auditLogs             AuditLog[]
+  planItems             ContentPlanItem[]
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
@@ -273,4 +285,120 @@ model PublishingAttempt {
 
   @@index([socialPostId, requestedAt])
   @@index([socialPostChannelId, attemptNumber])
+}
+
+model AdvertisementCaption {
+  id                String        @id @default(cuid())
+  advertisementId   String
+  masterCaption     String
+  facebookCaption   String?
+  instagramCaption  String?
+  useSameCaption    Boolean       @default(true)
+  tone              String        @default("Professional")
+  source            String        @default("MANUAL")
+  state             String        @default("DRAFT")
+  validationWarnings String       @default("[]")
+  createdByUserId   String
+  advertisement     Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  createdBy         User          @relation(fields: [createdByUserId], references: [id])
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([advertisementId, createdAt])
+  @@index([state])
+}
+
+model PlanningRule {
+  id                       String   @id @default("default")
+  timezone                 String   @default("Africa/Johannesburg")
+  facebookPostsPerWeek     Int      @default(5)
+  instagramPostsPerWeek    Int      @default(5)
+  preferredDays            String   @default("[1,2,3,4,5]")
+  preferredTime            String   @default("09:00")
+  sameSkuCooldownDays      Int      @default(14)
+  sameAdvertCooldownDays   Int      @default(14)
+  maxSpecialsPerWeek       Int      @default(2)
+  maxBackInStockPerWeek    Int      @default(2)
+  categoryBalancing        Boolean  @default(true)
+  campaignBalancing        Boolean  @default(true)
+  autoSchedulingMode       String   @default("manual")
+  updatedByUserId          String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+model ContentPlan {
+  id                String            @id @default(cuid())
+  weekStart         DateTime
+  status            String            @default("PLANNING_DRAFT")
+  timezone          String            @default("Africa/Johannesburg")
+  channels          String            @default("[]")
+  notes             String?
+  createdByUserId   String
+  submittedByUserId String?
+  approvedByUserId  String?
+  submittedAt       DateTime?
+  approvedAt        DateTime?
+  activatedAt       DateTime?
+  cancelledAt       DateTime?
+  createdBy         User              @relation("PlanCreator", fields: [createdByUserId], references: [id])
+  submittedBy       User?             @relation("PlanSubmitter", fields: [submittedByUserId], references: [id])
+  approvedBy        User?             @relation("PlanApprover", fields: [approvedByUserId], references: [id])
+  items             ContentPlanItem[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([weekStart, status])
+  @@index([createdByUserId])
+}
+
+model ContentPlanItem {
+  id                   String        @id @default(cuid())
+  contentPlanId        String
+  advertisementId      String
+  channelId            String
+  plannedAt            DateTime
+  position             Int
+  masterCaption        String
+  facebookCaption      String?
+  instagramCaption     String?
+  useSameCaption       Boolean       @default(true)
+  captionSource        String        @default("TEMPLATE")
+  captionState         String        @default("DRAFT")
+  status               String        @default("SUGGESTED")
+  reason               String
+  warnings             String        @default("[]")
+  manualPinned         Boolean       @default(false)
+  overrideReason       String?
+  socialPostId         String?
+  contentPlan          ContentPlan   @relation(fields: [contentPlanId], references: [id], onDelete: Cascade)
+  advertisement        Advertisement @relation(fields: [advertisementId], references: [id])
+  channel              SocialChannel @relation(fields: [channelId], references: [id])
+  socialPost           SocialPost?   @relation(fields: [socialPostId], references: [id], onDelete: SetNull)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@unique([contentPlanId, channelId, plannedAt])
+  @@index([advertisementId, plannedAt])
+  @@index([status])
+}
+
+model AIUsage {
+  id             String   @id @default(cuid())
+  action         String
+  entityType     String
+  entityId       String
+  provider       String
+  model          String
+  promptVersion  String
+  success        Boolean
+  inputTokens    Int?
+  outputTokens   Int?
+  estimatedCost  Float?
+  metadata       String?
+  userId         String?
+  createdAt      DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
 }

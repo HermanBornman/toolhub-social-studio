@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CalendarDays, CheckCircle2, ChevronRight, LayoutDashboard, Package, PlusSquare, Settings } from "lucide-react";
+import { BrainCircuit, CalendarDays, ChartNoAxesCombined, CheckCircle2, ChevronRight, LayoutDashboard, Package, PlusSquare, Settings } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -11,6 +11,8 @@ const nav = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/approvals", label: "Approvals", icon: CheckCircle2 },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/planner", label: "Content Planner", icon: BrainCircuit },
+  { href: "/reports", label: "Reports", icon: ChartNoAxesCombined },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -29,6 +31,7 @@ export function AppShell({ title, subtitle, children }: { title: string; subtitl
         <nav className="main-nav" aria-label="Main navigation">
           {nav.map(({ href, label, icon: Icon }) => {
             if (user.role === "MANAGER" && ["/create","/settings"].includes(href)) return null;
+            if (user.role === "STAFF" && ["/planner","/reports","/settings"].includes(href)) return null;
             if (!["MANAGER","ADMIN"].includes(user.role) && href === "/approvals") return null;
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (

@@ -19,7 +19,7 @@ export async function syncSocialChannels(user: CurrentUser) {
   return {account,organization,channels,dryRun:buffer.dryRun};
 }
 
-export async function processSocialPost(socialPostId:string, action:"SOCIAL_POST_SCHEDULE"|"SOCIAL_POST_PUBLISH_NOW"|"SOCIAL_POST_RETRY", user:CurrentUser, simulateInstagramFailure=false) {
+export async function processSocialPost(socialPostId:string, action:"SOCIAL_POST_SCHEDULE"|"SOCIAL_POST_PUBLISH_NOW"|"SOCIAL_POST_RETRY", user:CurrentUser, simulateInstagramFailure=false,platformCaptions?:Record<string,string>) {
   const buffer=getBufferService();
   const post=await prisma.socialPost.findUnique({where:{id:socialPostId},include:{channels:{include:{socialChannel:true}}}});
   if(!post) throw new Error("NOT_FOUND");
@@ -31,7 +31,7 @@ export async function processSocialPost(socialPostId:string, action:"SOCIAL_POST
     try {
       if(!target.socialChannel.active||!target.socialChannel.publishingEnabled||target.socialChannel.connectedStatus!=="CONNECTED") throw new BufferError("Channel is disabled or disconnected","CHANNEL_UNAVAILABLE");
       if(simulateInstagramFailure&&target.socialChannel.service==="instagram") throw new BufferError("Simulated Instagram failure","DRY_RUN_FAILURE");
-      const result=await buffer.createPost({channelId:target.socialChannel.providerChannelId,service:target.socialChannel.service,text:post.caption,imageUrl:post.finalArtworkUrl,mode:post.mode==="NOW"?"shareNow":"customScheduled",dueAt:post.scheduledAt?.toISOString()});
+      const result=await buffer.createPost({channelId:target.socialChannel.providerChannelId,service:target.socialChannel.service,text:platformCaptions?.[target.socialChannel.service]||post.caption,imageUrl:post.finalArtworkUrl,mode:post.mode==="NOW"?"shareNow":"customScheduled",dueAt:post.scheduledAt?.toISOString()});
       const status=buffer.dryRun&&post.mode==="NOW"?"DRY_RUN_COMPLETE":post.mode==="NOW"?"PUBLISHED":"SCHEDULED";
       await prisma.$transaction([prisma.socialPostChannel.update({where:{id:target.id},data:{status,providerPostId:result.id,providerStatus:result.status,providerDueAt:result.dueAt?new Date(result.dueAt):post.scheduledAt,providerResponse:JSON.stringify({...result,dryRun:buffer.dryRun}),errorCode:null,errorMessage:null,attemptCount:attemptNumber}}),prisma.publishingAttempt.update({where:{id:attempt.id},data:{completedAt:new Date(),success:true,providerPostId:result.id,responseMetadata:JSON.stringify({...result,dryRun:buffer.dryRun})}})]);
     } catch(error) {
@@ -47,7 +47,7 @@ export async function processSocialPost(socialPostId:string, action:"SOCIAL_POST
   return prisma.socialPost.findUniqueOrThrow({where:{id:post.id},include:{channels:{include:{socialChannel:true}},attempts:true}});
 }
 
-export async function createSocialPost(input:{idempotencyKey:string;advertisementId:string;caption:string;channelIds:string[];mode:"SCHEDULE"|"NOW";scheduledLocal?:string;timezone:string;artworkDataUrl:string;simulateInstagramFailure?:boolean}, user:CurrentUser) {
+export async function createSocialPost(input:{idempotencyKey:string;advertisementId:string;caption:string;platformCaptions?:Record<string,string>;channelIds:string[];mode:"SCHEDULE"|"NOW";scheduledLocal?:string;timezone:string;artworkDataUrl:string;simulateInstagramFailure?:boolean}, user:CurrentUser) {
   const existing=await prisma.socialPost.findUnique({where:{idempotencyKey:input.idempotencyKey},include:{channels:{include:{socialChannel:true}},attempts:true}}); if(existing)return existing;
   if(input.mode==="NOW"&&!['MANAGER','ADMIN'].includes(user.role))throw new Error("FORBIDDEN"); if(input.mode==="SCHEDULE"&&!['MARKETING','MANAGER','ADMIN'].includes(user.role))throw new Error("FORBIDDEN");
   const advert=await prisma.advertisement.findUnique({where:{id:input.advertisementId}}); if(!advert)throw new Error("NOT_FOUND"); if(advert.status!=="APPROVED")throw new Error("ADVERT_NOT_APPROVED");
@@ -58,5 +58,5 @@ export async function createSocialPost(input:{idempotencyKey:string;advertisemen
   const stored=await getMediaStorage().upload(`adverts/${advert.id}/social-posts/${post.id}.png`,input.artworkDataUrl), finalArtworkUrl=stored.provider==="DATABASE"?`/api/social-posts/${post.id}/artwork`:stored.url;
   await prisma.socialPost.update({where:{id:post.id},data:{finalArtworkUrl,finalArtworkData:stored.provider==="DATABASE"?stored.data:null}});
   await prisma.auditLog.create({data:{action:"SOCIAL_POST_CREATE",entityType:"SocialPost",entityId:post.id,advertisementId:advert.id,socialPostId:post.id,userId:user.id,userName:user.name,newStatus:"PUBLISHING",metadata:JSON.stringify({mode:input.mode,storage:stored.provider,dryRun:buffer.dryRun})}});
-  return processSocialPost(post.id,input.mode==="NOW"?"SOCIAL_POST_PUBLISH_NOW":"SOCIAL_POST_SCHEDULE",user,input.simulateInstagramFailure);
+  return processSocialPost(post.id,input.mode==="NOW"?"SOCIAL_POST_PUBLISH_NOW":"SOCIAL_POST_SCHEDULE",user,input.simulateInstagramFailure,input.platformCaptions);
 }

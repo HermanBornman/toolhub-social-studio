@@ -29,6 +29,7 @@ async function main() {
     const data = { id, displayName, assetPath, thumbnailPath: assetPath, active: true, defaultScale: 1, xPosition: 0, yPosition: 0 };
     await prisma.mascotMood.upsert({ where: { id }, update: data, create: data });
   }
+  await prisma.planningRule.upsert({ where: { id: "default" }, update: {}, create: { id: "default", timezone: "Africa/Johannesburg", facebookPostsPerWeek: 5, instagramPostsPerWeek: 5, preferredDays: "[1,2,3,4,5]", preferredTime: "09:00", sameSkuCooldownDays: 14, sameAdvertCooldownDays: 14, maxSpecialsPerWeek: 2, maxBackInStockPerWeek: 2, categoryBalancing: true, campaignBalancing: true, autoSchedulingMode: "manual" } });
   await prisma.product.upsert({
     where: { sku: "TEST-CIDLI20" },
     update: {},

@@ -1,0 +1,2 @@
+import{NextResponse}from"next/server";import{ensureCurrentUser,errorResponse}from"@/lib/server-user";import{planAction}from"@/lib/plan-service";
+export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){try{const user=await ensureCurrentUser(),body=await request.json();return NextResponse.json(await planAction((await params).id,String(body.action),user))}catch(error){const out=errorResponse(error);return NextResponse.json({error:error instanceof Error?error.message:out.error},{status:out.status})}}

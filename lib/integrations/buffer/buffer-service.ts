@@ -15,7 +15,7 @@ export class DryRunBufferService implements BufferService {
   async getBufferAccount(){return {id:"dry-account",name:"Toolhub Dry Run",email:"dry-run@toolhub.local",organizations:[{id:"dry-toolhub-org",name:"Toolhub (Dry Run)"}]};}
   async getOrganizations(){return (await this.getBufferAccount()).organizations;}
   async getChannels(organizationId:string){return [{id:"dry-facebook-toolhub",name:"toolhub",displayName:"Facebook — Toolhub",service:"facebook",isDisconnected:false,isLocked:false,organizationId},{id:"dry-instagram-toolhub",name:"toolhub",displayName:"Instagram — Toolhub",service:"instagram",isDisconnected:false,isLocked:false,organizationId}];}
-  async createPost(input:BufferCreateInput){if(process.env.SOCIAL_DRY_RUN_FAIL_SERVICE&&input.channelId.includes(process.env.SOCIAL_DRY_RUN_FAIL_SERVICE))throw new BufferError("Simulated dry-run channel failure","DRY_RUN_FAILURE");const stamp=Buffer.from(`${input.channelId}|${input.mode}|${input.dueAt||"now"}`).toString("base64url").slice(0,20);return {id:`dry_${stamp}`,status:input.mode==="shareNow"?"sent":"scheduled",dueAt:input.dueAt||new Date().toISOString()};}
+  async createPost(input:BufferCreateInput){if(process.env.SOCIAL_DRY_RUN_FAIL_SERVICE&&input.channelId.includes(process.env.SOCIAL_DRY_RUN_FAIL_SERVICE))throw new BufferError("Simulated dry-run channel failure","DRY_RUN_FAILURE");const source=`${input.channelId}|${input.mode}|${input.dueAt||"now"}|${input.text}|${input.imageUrl}`,hash=[...source].reduce((value,char)=>Math.imul(value^char.charCodeAt(0),16777619)>>>0,2166136261).toString(36);return {id:`dry_${hash}`,status:input.mode==="shareNow"?"sent":"scheduled",dueAt:input.dueAt||new Date().toISOString()};}
   async getPosts(){return [];}
   async deleteScheduledPost(){return;}
 }
