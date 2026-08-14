@@ -31,7 +31,7 @@ export async function processSocialPost(socialPostId:string, action:"SOCIAL_POST
     try {
       if(!target.socialChannel.active||!target.socialChannel.publishingEnabled||target.socialChannel.connectedStatus!=="CONNECTED") throw new BufferError("Channel is disabled or disconnected","CHANNEL_UNAVAILABLE");
       if(simulateInstagramFailure&&target.socialChannel.service==="instagram") throw new BufferError("Simulated Instagram failure","DRY_RUN_FAILURE");
-      const result=await buffer.createPost({channelId:target.socialChannel.providerChannelId,text:post.caption,imageUrl:post.finalArtworkUrl,mode:post.mode==="NOW"?"shareNow":"customScheduled",dueAt:post.scheduledAt?.toISOString()});
+      const result=await buffer.createPost({channelId:target.socialChannel.providerChannelId,service:target.socialChannel.service,text:post.caption,imageUrl:post.finalArtworkUrl,mode:post.mode==="NOW"?"shareNow":"customScheduled",dueAt:post.scheduledAt?.toISOString()});
       const status=buffer.dryRun&&post.mode==="NOW"?"DRY_RUN_COMPLETE":post.mode==="NOW"?"PUBLISHED":"SCHEDULED";
       await prisma.$transaction([prisma.socialPostChannel.update({where:{id:target.id},data:{status,providerPostId:result.id,providerStatus:result.status,providerDueAt:result.dueAt?new Date(result.dueAt):post.scheduledAt,providerResponse:JSON.stringify({...result,dryRun:buffer.dryRun}),errorCode:null,errorMessage:null,attemptCount:attemptNumber}}),prisma.publishingAttempt.update({where:{id:attempt.id},data:{completedAt:new Date(),success:true,providerPostId:result.id,responseMetadata:JSON.stringify({...result,dryRun:buffer.dryRun})}})]);
     } catch(error) {
