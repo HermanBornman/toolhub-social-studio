@@ -5,8 +5,20 @@ export interface AIClient {
   testConnection(): Promise<{ ok: boolean; provider: string; model: string; message: string }>;
 }
 
+function safeProviderText(value: unknown, fallback: string) {
+  return String(value || fallback).replace(/[\r\n\t]+/g, " ").replace(/[^\x20-\x7E]/g, "").slice(0, 300);
+}
+
+export class AIProviderError extends Error {
+  constructor(public status: number, public code: string, public providerMessage: string, public requestId?: string) {
+    super(`AI_PROVIDER_${status}`);
+    this.name = "AIProviderError";
+  }
+  details() { return { status: this.status, code: this.code, message: this.providerMessage, requestId: this.requestId }; }
+}
+
 export class OpenAIClient implements AIClient {
-  constructor(private apiKey = process.env.OPENAI_API_KEY || "", private model = process.env.AI_MODEL || "") {}
+  constructor(private apiKey = process.env.OPENAI_API_KEY || "", private model = process.env.AI_MODEL || "", private fetcher: typeof fetch = fetch) {}
 
   async request(body: unknown) {
     if (!this.apiKey) throw new Error("AI_NOT_CONFIGURED");
@@ -14,13 +26,19 @@ export class OpenAIClient implements AIClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     try {
-      const response = await fetch("https://api.openai.com/v1/responses", {
+      const response = await this.fetcher("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`AI_PROVIDER_${response.status}`);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: { code?: string; type?: string; message?: string } };
+        const code = safeProviderText(payload.error?.code || payload.error?.type, `http_${response.status}`);
+        const message = safeProviderText(payload.error?.message, `OpenAI returned HTTP ${response.status}`);
+        const requestId = response.headers.get("x-request-id") || undefined;
+        throw new AIProviderError(response.status, code, message, requestId);
+      }
       return await response.json() as any;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") throw new Error("AI_TIMEOUT");

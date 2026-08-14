@@ -6,4 +6,4 @@ export const captionOptionSchema=z.object({tone:z.string().min(1),caption:z.stri
 export const captionResponseSchema=z.object({options:z.array(captionOptionSchema).length(3)});
 export type CaptionResponse=z.infer<typeof captionResponseSchema>;
 export type AdvertFacts={advertisementId:string;productName:string;sku:string;brand:string;category:string;primarySpecification:string;secondarySpecification:string;feature01:string;feature02:string;keyBenefit:string;campaignType:string;campaignMessage:string;sellingPrice:number;disclaimer:string;websiteUrl:string};
-export type AIResult<T>={data:T;provider:string;model:string;promptVersion:string;usage?:{inputTokens?:number;outputTokens?:number;estimatedCost?:number};fallback:boolean;message?:string};
+export type AIResult<T>={data:T;provider:string;model:string;promptVersion:string;usage?:{inputTokens?:number;outputTokens?:number;estimatedCost?:number};fallback:boolean;message?:string;error?:{status:number;code:string;message:string;requestId?:string}};
