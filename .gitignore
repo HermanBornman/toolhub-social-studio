@@ -1,0 +1,8 @@
+.next/
+node_modules/
+.vercel/
+.env*
+*.log
+generated_images/
+processed-characters/
+upload/
