@@ -25,7 +25,7 @@ image.src = source;
 }
 
 export function normalizeCutoutAlpha(alpha: number) {
-  return alpha <= 6 ? 0 : alpha >= 110 ? 255 : Math.round(((alpha - 6) / 104) * 255);
+  return Math.max(0, Math.min(255, Math.round(alpha)));
 }
 
 async function floodFillBackground(file: Blob) {
@@ -109,7 +109,7 @@ const context = canvas.getContext("2d", { willReadFrequently: true });
 if (!context) return blob;
 context.imageSmoothingEnabled = true;
 context.imageSmoothingQuality = "high";
-context.filter = "brightness(1.035) contrast(1.14) saturate(1.18)";
+context.filter = "none";
 context.drawImage(image, 0, 0);
 context.filter = "none";
 
@@ -123,7 +123,7 @@ const alphaIndex = index * 4 + 3;
 const alpha = pixels.data[alphaIndex];
 // Preserve fine anti-aliased edges, cables and soft shadows while making the solid product unfaded.
 pixels.data[alphaIndex] = normalizeCutoutAlpha(alpha);
-if (pixels.data[alphaIndex] > 18) {
+if (pixels.data[alphaIndex] > 0) {
 const x = index % canvas.width;
 const y = Math.floor(index / canvas.width);
 left = Math.min(left, x);
