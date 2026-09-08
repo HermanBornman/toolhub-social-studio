@@ -158,6 +158,13 @@ context.font = "700 18px Arial";
 wrapText(context, spec.toUpperCase(), 238, 2).forEach((line, lineIndex) => {
 context.fillText(line, 88, specsTop + 34 + index * 59 + lineIndex * 18);
 });
+if (form.condition.trim()) {
+context.fillStyle = ORANGE;
+context.font = "800 16px Arial";
+wrapText(context, form.condition.toUpperCase(), 238, 3).forEach((line, lineIndex) => {
+context.fillText(line, 88, specsTop + 282 + lineIndex * 18);
+});
+}
 });
 
 // A deeper 660 x up-to-390 hero area gives the product roughly 35-40% more visual weight.
