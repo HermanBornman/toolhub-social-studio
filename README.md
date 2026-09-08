@@ -12,20 +12,19 @@ Internal Toolhub application for creating consistent, approved social-media prod
 - Save drafts and route adverts through approval before publishing.
 - Add social-media scheduling and publishing integrations in later phases.
 
-## Phase 1: Toolhub Ad Creator V1
+## Verified supplier-document workflow
 
-The first milestone will build:
+Supplier files are processed in this order:
 
-- Toolhub-branded application shell
-- Create Advert form
-- locked master-template renderer
-- product image upload and fitting
-- mascot mood selector
-- South African Rand price formatting
-- working QR code generation
-- live advert preview
-- PNG export at 1080 × 1350
-- Save Draft capability
+1. Extract embedded PDF text and images.
+2. Render each page at high resolution and run OCR.
+3. Classify product information, prices, conditions and visual candidates.
+4. Select the main product image and remove only that image's background.
+5. Present every page as an editable draft with confidence warnings.
+6. Require explicit approval before rendering the locked Toolhub template.
+7. Save a local audit record containing the source page, corrections, pricing and final artwork.
+
+One draft is created per PDF page by default. Possible multiple-product pages are blocked until the user chooses separate or combined adverts. Missing or unclear nett prices are never used to calculate a selling price.
 
 ## Core rule
 
@@ -56,6 +55,6 @@ Normal staff users must not be able to move logos, change brand colours, freely 
 6. Reporting and analytics
 7. Future IQ Retail integration
 
-## Status
+## Current storage boundary
 
-Repository initialized and ready for Codex development.
+Audit records are stored in IndexedDB on the staff member's browser. Central, cross-device audit storage and staff authentication require a separately approved database and authentication integration.
