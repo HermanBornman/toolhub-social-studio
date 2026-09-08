@@ -75,7 +75,6 @@ async function extractEmbeddedImages(page: PdfPage, ops: Record<string, number>,
     if (!image || width < 160 || height < 120) continue;
     const dataUrl = imageDataUrl(image);
     if (!dataUrl) continue;
-    const area = width * height;
     const ratio = width / height;
     if (ratio > 8 || ratio < 0.12) continue;
     candidates.push({
@@ -84,7 +83,7 @@ async function extractEmbeddedImages(page: PdfPage, ops: Record<string, number>,
       source: "embedded-image",
       width,
       height,
-      confidence: area >= 500_000 ? "high" : area >= 120_000 ? "medium" : "low",
+      confidence: "low",
       label: `Embedded image ${index + 1} (${width} × ${height})`,
     });
   }
@@ -142,10 +141,7 @@ export async function renderSupplierFile(file: File, onStatus: (status: string) 
     for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber++) {
       onStatus(`Page ${pageNumber} of ${pdfDocument.numPages}: extracting embedded text and images...`);
       const page = await pdfDocument.getPage(pageNumber) as unknown as PdfPage;
-      const [textContent, embeddedImages] = await Promise.all([
-        page.getTextContent(),
-        extractEmbeddedImages(page, pdfjs.OPS as unknown as Record<string, number>, pageNumber).catch(() => []),
-      ]);
+      const textContent = await page.getTextContent();
       const extracted = textFromPage(textContent.items);
       onStatus(`Page ${pageNumber} of ${pdfDocument.numPages}: creating high-resolution preview...`);
       const viewport = page.getViewport({ scale: 3.2 });
@@ -155,6 +151,7 @@ export async function renderSupplierFile(file: File, onStatus: (status: string) 
       const context = canvas.getContext("2d", { alpha: false });
       if (!context) throw new Error(`Page ${pageNumber}: preview canvas unavailable.`);
       await page.render({ canvas, canvasContext: context, viewport }).promise;
+      const embeddedImages = await extractEmbeddedImages(page, pdfjs.OPS as unknown as Record<string, number>, pageNumber).catch(() => []);
       const pageRatio = canvas.width / canvas.height;
       const usableEmbeddedImages = embeddedImages.filter((candidate) => {
         const candidateRatio = candidate.width / candidate.height;
