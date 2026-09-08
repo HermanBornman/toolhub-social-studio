@@ -1,4 +1,4 @@
-import type { ImageCrop } from "./types";
+import type { ConfidenceLevel, ImageCandidate, ImageCrop } from "./types";
 
 export function readAsDataUrl(blob: Blob): Promise<string> {
 return new Promise((resolve, reject) => {
@@ -22,6 +22,10 @@ image.onload = () => resolve(image);
 image.onerror = reject;
 image.src = source;
 });
+}
+
+export function normalizeCutoutAlpha(alpha: number) {
+  return Math.max(0, Math.min(255, Math.round(alpha)));
 }
 
 async function floodFillBackground(file: Blob) {
@@ -105,7 +109,7 @@ const context = canvas.getContext("2d", { willReadFrequently: true });
 if (!context) return blob;
 context.imageSmoothingEnabled = true;
 context.imageSmoothingQuality = "high";
-context.filter = "brightness(1.035) contrast(1.14) saturate(1.18)";
+context.filter = "none";
 context.drawImage(image, 0, 0);
 context.filter = "none";
 
@@ -117,9 +121,9 @@ let bottom = -1;
 for (let index = 0; index < canvas.width * canvas.height; index++) {
 const alphaIndex = index * 4 + 3;
 const alpha = pixels.data[alphaIndex];
-// Preserve an opaque, unfaded product while retaining a short anti-aliased edge.
-pixels.data[alphaIndex] = alpha <= 26 ? 0 : alpha >= 112 ? 255 : Math.round(((alpha - 26) / 86) * 255);
-if (pixels.data[alphaIndex] > 18) {
+// Preserve fine anti-aliased edges, cables and soft shadows while making the solid product unfaded.
+pixels.data[alphaIndex] = normalizeCutoutAlpha(alpha);
+if (pixels.data[alphaIndex] > 0) {
 const x = index % canvas.width;
 const y = Math.floor(index / canvas.width);
 left = Math.min(left, x);
@@ -173,10 +177,14 @@ if (!cropContext) throw new Error("Product extraction canvas unavailable");
 cropContext.imageSmoothingEnabled = true;
 cropContext.imageSmoothingQuality = "high";
 cropContext.drawImage(source, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
-// A near-lossless JPEG keeps the server upload well below platform limits while
-// preserving the high-resolution source pixels used by remove.bg.
-const cropBlob = await canvasToBlob(cropCanvas, "image/jpeg", 0.97);
-const file = new File([cropBlob], `${filename || "product"}.jpg`, { type: "image/jpeg" });
+// Prefer lossless PNG so thin components and transparent or reflective edges survive.
+// Fall back to near-lossless JPEG only when the server's safe upload limit requires it.
+const losslessCrop = await canvasToBlob(cropCanvas, "image/png", 1);
+const cropBlob = losslessCrop.size <= 7.5 * 1024 * 1024
+  ? losslessCrop
+  : await canvasToBlob(cropCanvas, "image/jpeg", 0.98);
+const extension = cropBlob.type === "image/png" ? "png" : "jpg";
+const file = new File([cropBlob], `${filename || "product"}.${extension}`, { type: cropBlob.type });
 
 let removed: Blob;
 try {
@@ -201,4 +209,45 @@ return readAsDataUrl(await enhanceAndTrimCutout(removed));
 
 export async function isolateUploadedPhoto(file: File, onProgress: (progress: number) => void = () => undefined) {
 return isolateProduct(await readAsDataUrl(file), { x: 0, y: 0, width: 1, height: 1 }, file.name.replace(/\.[^.]+$/, ""), onProgress);
+}
+
+export async function createPageCropCandidate(
+  pageDataUrl: string,
+  pageNumber: number,
+  crop: ImageCrop = { x: 0.08, y: 0.2, width: 0.72, height: 0.58 },
+  confidence: ConfidenceLevel = "low",
+): Promise<ImageCandidate> {
+  const source = await loadImage(pageDataUrl);
+  const sourceX = Math.max(0, Math.round(source.width * crop.x));
+  const sourceY = Math.max(0, Math.round(source.height * crop.y));
+  const sourceWidth = Math.max(1, Math.min(source.width - sourceX, Math.round(source.width * crop.width)));
+  const sourceHeight = Math.max(1, Math.min(source.height - sourceY, Math.round(source.height * crop.height)));
+  const canvas = document.createElement("canvas");
+  canvas.width = sourceWidth;
+  canvas.height = sourceHeight;
+  const context = canvas.getContext("2d", { alpha: true });
+  if (!context) throw new Error("Product crop canvas unavailable");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(source, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+  return {
+    id: `page-${pageNumber}-suggested-crop`,
+    dataUrl: canvas.toDataURL("image/png"),
+    source: "page-crop",
+    width: sourceWidth,
+    height: sourceHeight,
+    confidence,
+    label: "Suggested product crop—review required",
+  };
+}
+
+export async function removeCandidateBackground(
+  candidate: ImageCandidate,
+  filename: string,
+  onProgress: (progress: number) => void = () => undefined,
+) {
+  const response = await fetch(candidate.dataUrl);
+  const blob = await response.blob();
+  const file = new File([blob], `${filename || "product"}.png`, { type: blob.type || "image/png" });
+  return isolateUploadedPhoto(file, onProgress);
 }
