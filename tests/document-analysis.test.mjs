@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { analyseProductText, hasLowConfidence, normalizeUnits } from "../lib/document-analysis.ts";
 
 test("normalises units without changing their meaning", () => {
-  assert.equal(normalizeUnits('20v cordless drill 150mm(6") 4.0ah'), '20 V cordless drill 150 mm (6") 4.0 AH');
+  assert.equal(normalizeUnits('20v cordless drill 150mm(6") 4.0ah'), '20 V cordless drill 150 mm (6") 4.0 Ah');
 });
 
 test("extracts verified fields and nett pricing from embedded PDF text", () => {
@@ -54,4 +54,8 @@ test("rejects an ambiguous OCR nett-price digit grouping", () => {
   const result = analyseProductText("", "MODEL CKLI20358\nNET R 2819 9");
   assert.equal(result.nettPrice.value, null);
   assert.match(result.warnings.join(" "), /Nett price not found or unclear/i);
+});
+
+test("ambiguous multiple amounts cannot become nett cost", () => {
+ assert.equal(analyseProductText("NETT R1000 SPECIAL R1200", "").nettPrice.value, null);
 });
