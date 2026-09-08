@@ -30,7 +30,10 @@ if (!line || context.measureText(candidate).width <= maxWidth) line = candidate;
 else {
 lines.push(line);
 line = word;
-if (lines.length === maxLines - 1) break;
+if (lines.length >= maxLines) {
+  lines[maxLines - 1] = lines[maxLines - 1].replace(/\s+\S*$/, "") + "…";
+  return lines;
+}
 }
 }
 if (line && lines.length < maxLines) lines.push(line);
@@ -60,7 +63,7 @@ let right = -1;
 let bottom = -1;
 for (let y = 0; y < canvas.height; y++) {
 for (let x = 0; x < canvas.width; x++) {
-if (data[(y * canvas.width + x) * 4 + 3] > 52) {
+if (data[(y * canvas.width + x) * 4 + 3] > 0) {
 left = Math.min(left, x);
 top = Math.min(top, y);
 right = Math.max(right, x);
@@ -159,9 +162,16 @@ wrapText(context, spec.toUpperCase(), 238, 2).forEach((line, lineIndex) => {
 context.fillText(line, 88, specsTop + 34 + index * 59 + lineIndex * 18);
 });
 });
+if (form.condition.trim()) {
+context.fillStyle = ORANGE;
+context.font = "800 16px Arial";
+wrapText(context, form.condition.toUpperCase(), 238, 3).forEach((line, lineIndex) => {
+context.fillText(line, 88, specsTop + 282 + lineIndex * 18);
+});
+}
 
 // A deeper 660 x up-to-390 hero area gives the product roughly 35-40% more visual weight.
-drawProductHero(context, product, 348, dividerY + 18, 660, Math.max(300, 1024 - (dividerY + 18)));
+drawProductHero(context, product, 348, dividerY + 18, 660, Math.max(1, 990 - (dividerY + 18)));
 
 const footer = context.createLinearGradient(0, 980, 0, 1220);
 footer.addColorStop(0, "#252729");
