@@ -15,7 +15,7 @@ function cleanLine(value: string) {
 
 export function normalizeUnits(value: string) {
   return cleanLine(value)
-    .replace(/(\d)\s*(mm|cm|km|kg|kw|mah|ah|nm|rpm|psi|bar|hz|ml|pcs?|v|w|j|l)\b/gi, (_all, number, unit) => `${number} ${String(unit).toUpperCase()}`)
+    .replace(/(\d)\s*(mm|cm|km|kg|kw|mah|ah|nm|rpm|psi|bar|hz|ml|pcs?|v|w|j|l)\b/gi, (_all, number, unit) => `${number} ${{mm: "mm", cm: "cm", km: "km", kg: "kg", kw: "kW", mah: "mAh", ah: "Ah", nm: "Nm", rpm: "rpm", psi: "psi", bar: "bar", hz: "Hz", ml: "ml", pc: "pc", pcs: "pcs", v: "V", w: "W", j: "J", l: "L"}[String(unit).toLowerCase()]}`)
     .replace(/(\d)\s*mm\s*\(\s*(\d+(?:\.\d+)?)\s*(?:in|inch|\")\s*\)/gi, "$1 mm ($2\")")
     .replace(/(\d)\s*x\s*(\d)/gi, "$1 × $2")
     .replace(/\s+([,;:)])/g, "$1")
@@ -65,7 +65,8 @@ function labelledPrice(lines: string[], labels: RegExp[]) {
   for (const line of lines) {
     if (!labels.some((label) => label.test(line))) continue;
     const matches = [...line.matchAll(/(?:R\s*)?([0-9][0-9\s,.]{1,12})/gi)];
-    const match = matches.at(-1)?.[1];
+    if (matches.length !== 1) return { value: null, line };
+    const match = matches[0]?.[1];
     if (match) return { value: parseMoney(match), line };
   }
   return { value: null, line: "" };
