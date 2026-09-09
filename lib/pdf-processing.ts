@@ -39,6 +39,8 @@ const pages: SupplierPage[] = [];
 for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
 onStatus(`Preparing page ${pageNumber} of ${document.numPages}...`);
 const page = await document.getPage(pageNumber);
+const content = await page.getTextContent();
+const embeddedText = content.items.map(item => "str" in item ? item.str : "").join("\n");
 const viewport = page.getViewport({ scale: 3.2 });
 const canvas = window.document.createElement("canvas");
 canvas.width = Math.round(viewport.width);
@@ -47,7 +49,7 @@ const context = canvas.getContext("2d", { alpha: false });
 if (!context) continue;
 await page.render({ canvas, canvasContext: context, viewport }).promise;
 // Lossless source pages prevent JPEG softness before background removal.
-pages.push({ dataUrl: canvas.toDataURL("image/png"), page: pageNumber });
+pages.push({ dataUrl: canvas.toDataURL("image/png"), page: pageNumber, embeddedText });
 }
 return pages;
 }
