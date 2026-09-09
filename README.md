@@ -87,3 +87,12 @@ API references: https://developers.openai.com/api/docs/guides/text and https://d
 ### Verification
 
 `node --test tests/*.test.mjs` covers the existing calculator/fit tests, unchanged price fields during no-price reading, schema rejection, missing credentials, provider failures, structured reading and image-edit parameters using mocked provider responses. `next build --webpack` passes. Live provider reading/isolation still needs configured credentials and a visual check using the supplied saw PDF; mock tests do not prove image fidelity or OCR accuracy.
+
+
+### Saw-flyer regression correction
+
+Unpriced, unnamed or unfamiliar product pages are routed to review automatically, including when the no-pricing option was not selected. The old first-text-line title and random-digit specification heuristic has been removed. Catalogue matching no longer guesses a product from the PDF filename/page position.
+
+Without AI credentials the reader uses embedded text, or local OCR for scans, then conservatively classifies explicit text. Unknown fields stay empty. This fallback does **not** visually identify a saw or automatically isolate a product: staff must supply missing details and a clean product photo. With credentials the visual reader and image editor handle these tasks, subject to review.
+
+The supplied saw PDF was rendered and read with local OCR: the two cutting capacities and the battery/charger exclusion were correctly classified. The difficult logo/motor text and unnamed product stayed unconfirmed. This is not a claim that the live AI service was tested. The regression tests additionally cover the exact incorrect fragments `Metal:12mm 5` and `\\ 223)`.
