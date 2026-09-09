@@ -6,3 +6,6 @@ node_modules/
 generated_images/
 processed-characters/
 upload/
+
+node_modules
+*.tsbuildinfo
