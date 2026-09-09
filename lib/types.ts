@@ -10,6 +10,7 @@ description: string;
 specs: string[];
 prices: ProductPrices;
 imageCrop?: ImageCrop;
+condition?: string;
 };
 
 export type AdvertForm = {
