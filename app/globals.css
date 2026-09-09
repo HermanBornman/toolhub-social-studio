@@ -166,3 +166,5 @@ progress { width: 100%; height: 8px; accent-color: var(--orange); }
   .toolbar-actions .button { flex: 1; }
   .canvas-stage { padding: 10px; }
 }
+
+.no-price-option{display:flex;align-items:flex-start;gap:10px;margin:14px 0;line-height:1.5}.no-price-option input{width:auto;flex-shrink:0;margin-top:6px}.no-price-review{border:1px solid #ff7900;padding:16px;margin:18px 0;border-radius:10px}.source-product-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.source-product-pair figure{margin:0;min-width:0}.source-product-pair img{width:100%;height:210px;object-fit:contain;background:#ddd}.no-price-review pre{white-space:pre-wrap;word-break:break-word;font-size:12px;max-height:250px;overflow:auto}.no-price-review p{font-size:13px;line-height:1.5}
