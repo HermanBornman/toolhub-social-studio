@@ -2,6 +2,7 @@
 
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
+import { readVisibleText } from "@/lib/conservative-pdf-reader";
 import { isolatePdfProduct, readSupplierPage } from "@/lib/pdf-product-image";
 import { applyNoPriceProduct } from "@/lib/supplier-reading";
 import type { SupplierReading } from "@/lib/supplier-reading";
@@ -218,15 +219,14 @@ setPhotoProcessing(false);
 };
 
 const productForPage = async (page: SupplierPage, index: number, workerRef: { current?: OcrWorker }) => {
-const known = findCatalogProduct("", index, supplierName);
-if (known) return known;
+if (page.embeddedText?.trim()) return findCatalogProduct(page.embeddedText) || productFromOcr(page.embeddedText);
 if (!workerRef.current) {
 const { createWorker, OEM } = await import("tesseract.js");
 workerRef.current = await createWorker("eng", OEM.LSTM_ONLY) as OcrWorker;
 await workerRef.current.setParameters({ preserve_interword_spaces: "1" });
 }
 const result = await workerRef.current.recognize(page.dataUrl);
-return findCatalogProduct(result.data.text, index, supplierName) || productFromOcr(result.data.text);
+return findCatalogProduct(result.data.text) || productFromOcr(result.data.text);
 };
 
 const generatePages = async (pageIndexes: number[]) => {
@@ -245,6 +245,10 @@ const page = supplierPages[index];
 const base = position / pageIndexes.length;
 setBatchStatus(`Supplier page ${page.page}: reading product details...`);
 const product = await productForPage(page, index, workerRef);
+if (!product.title.trim() || !product.imageCrop || !Object.values(product.prices).some(price => typeof price === "number" && Number.isFinite(price) && price > 0)) {
+  await prepareNoPricePages([index]);
+  continue;
+}
 setBatchStatus(`Supplier page ${page.page}: removing the product background...`);
 const productImage = await isolateProduct(page.dataUrl, product.imageCrop, product.model, (progress) => {
 setBatchProgress(Math.round((base + (0.2 + 0.65 * progress) / pageIndexes.length) * 100));
@@ -256,6 +260,7 @@ const advertForm: AdvertForm = {
 title: product.title,
 model: product.model,
 description: product.description,
+condition: product.condition || "",
 specs: [...product.specs.slice(0, 4), "", "", "", ""].slice(0, 4),
 price: String(sellingPrice),
 previousPrice: form.saleEnabled ? String(sellingPrice) : form.previousPrice,
@@ -273,7 +278,7 @@ setBatch([...completed]);
 if (position === 0) setForm(advertForm);
 setBatchProgress(Math.round(((position + 1) / pageIndexes.length) * 100));
 }
-setBatchStatus(`${completed.length} adverts ready - one product-only advert per PDF page.`);
+setBatchStatus(completed.length ? `${completed.length} adverts ready. Any pages needing review are listed below.` : "PDF pages require review below before generation.");
 } catch (error) {
 setSupplierError(error instanceof Error ? error.message : "The batch could not be completed.");
 setBatchStatus(completed.length ? `${completed.length} adverts completed before the error.` : "");
@@ -294,8 +299,7 @@ const reviewProduct = (draft: NoPriceDraft, selected = draft.selected) => {
 };
 
 const prepareNoPricePages = async (indexes: number[]) => {
-  if (preparing || batching) return;
-  if (!accessCode) { setSupplierError("Enter the staff AI-service access code to read the PDF."); return; }
+  if (preparing) return;
   setPreparing(true); setSupplierError("");
   const completed: NoPriceDraft[] = [];
   try {
@@ -304,13 +308,24 @@ const prepareNoPricePages = async (indexes: number[]) => {
       const draft: NoPriceDraft = { page, selected: 0, image: "", error: "" };
       try {
         setBatchStatus(`Page ${page.page}: reading product details from the source…`);
-        draft.reading = await readSupplierPage(page.dataUrl, page.embeddedText || "", accessCode);
-        if (draft.reading.products.length === 1) {
+        if (accessCode) {
+          draft.reading = await readSupplierPage(page.dataUrl, page.embeddedText || "", accessCode);
+        } else {
+          let text = page.embeddedText || "";
+          if (!text.trim()) {
+            const { createWorker, OEM } = await import("tesseract.js");
+            const worker = await createWorker("eng", OEM.LSTM_ONLY);
+            try { text = (await worker.recognize(page.dataUrl)).data.text; }
+            finally { await worker.terminate(); }
+          }
+          draft.reading = readVisibleText(text);
+        }
+        if (draft.reading.products.length === 1 && accessCode) {
           setBatchStatus(`Page ${page.page}: isolating the main product image…`);
           const product = draft.reading.products[0];
           draft.image = await isolatePdfProduct(page.dataUrl, accessCode, `${product.title.value || ""} ${product.model.value || ""}`);
         } else {
-          draft.error = draft.reading.products.length ? "Choose the product below before extracting its image." : "No readable product found. Enter the details and upload a separate product image.";
+          draft.error = !accessCode ? "Text has been read. Automatic product isolation requires the connected AI service; upload a separate clean product photo below." : draft.reading.products.length ? "Choose the product below before extracting its image." : "No readable product found. Enter the details and upload a separate product image.";
         }
       } catch (error) { draft.error = error instanceof Error ? error.message : "This page could not be processed."; }
       completed.push(draft);
@@ -404,7 +419,7 @@ return (
 <section className="form-section supplier-section">
 <SectionTitle icon="▤">Read supplier sheet</SectionTitle>
 <label className="no-price-option"><input type="checkbox" checked={noPricing} disabled={batching || preparing} onChange={event => setNoPricing(event.target.checked)} /> This PDF has no pricing: read details and isolate the product</label>
-{noPricing && <Field label="Staff AI-service access code"><input type="password" autoComplete="off" value={accessCode} onChange={event => setAccessCode(event.target.value)} /></Field>}
+{(noPricing || drafts.length > 0) && <Field label="Staff AI-service access code"><input type="password" autoComplete="off" placeholder="Optional — enables visual reading and automatic extraction" value={accessCode} onChange={event => setAccessCode(event.target.value)} /></Field>}
 <p className="section-help">Upload a supplier PDF. The app reads every page, extracts only the product image and creates one complete advert per page.</p>
 <button className="button secondary full" type="button" disabled={batching || preparing} onClick={() => supplierInputRef.current?.click()}>▤ Choose PDF or image</button>
 <input ref={supplierInputRef} hidden type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(event: ChangeEvent<HTMLInputElement>) => { handleSupplierFile(event.target.files?.[0]); event.target.value = ""; }} />
