@@ -1,3 +1,4 @@
+import { readVisibleText } from "./conservative-pdf-reader";
 import type { ProductDetails, SupplierPage } from "./types";
 
 function parsePrice(text: string, label: RegExp) {
@@ -8,19 +9,14 @@ return Number.isFinite(value) ? value : undefined;
 }
 
 export function productFromOcr(text: string): ProductDetails {
-const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
-const modelMatch = text.match(/(?:MODEL|ITEM|CODE)\s*[:#-]?\s*([A-Z]{2,}[A-Z0-9-]{3,})/i)
-|| text.match(/\b([A-Z]{2,}\d[A-Z0-9-]{4,})\b/);
-const barcode = text.match(/\b\d{12,14}\b/)?.[0] || "";
-const title = lines.find((line) => line.length > 8 && line.length < 70 && /[A-Z]/.test(line) && !/PRICE|NETT|LIST|BARCODE|MODEL/i.test(line));
-const specs = lines.filter((line) => /\d/.test(line) && line.length >= 5 && line.length <= 46 && !/PRICE|NETT|LIST|BARCODE|MODEL|R\s?\d/i.test(line));
-const model = modelMatch?.[1]?.toUpperCase() || "";
+const product = readVisibleText(text).products[0];
 return {
-title: (title || "EXTRACTED PRODUCT").toUpperCase(),
-model,
-barcode,
-description: model ? `Model ${model} - details extracted from supplier artwork.` : "Details extracted from supplier artwork.",
-specs: [...new Set(specs)].slice(0, 4).map((line) => line.toUpperCase()),
+title: product.title.value || "",
+model: product.model.value || "",
+barcode: text.match(/\b\d{12,14}\b/)?.[0] || "",
+description: "",
+specs: product.specs.map(spec => spec.value || ""),
+condition: product.excluded.map(item => item.value).filter(Boolean).join(" · "),
 prices: {
 list: parsePrice(text, /LIST(?:\s+PRICE)?/),
 nett: parsePrice(text, /NETT(?:\s+PRICE)?/),
