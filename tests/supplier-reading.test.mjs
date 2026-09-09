@@ -59,3 +59,13 @@ test('image request preserves fidelity and demands transparent product-only outp
 test('image failure never silently substitutes the full supplier page',async()=>{
   assert.equal((await handleIsolation(upload(),config,async()=>Response.json({data:[]}))).status,502);
 });
+
+test('saw OCR regression: capacity is not a name; labels and noise are rejected',async()=>{
+  const { readVisibleText }=await import('../lib/conservative-pdf-reader.ts');
+  const result=readVisibleText('P20S\nBL MOTOR\nWood:210mm\nMetal:12mm 5\n\\ 223)\nWood 150mm(6")\nBattery\nand charger\nsold separately\n20V MAX');
+  const p=result.products[0];
+  assert.equal(p.title.value,null);
+  assert.deepEqual(p.specs.map(x=>x.value),['Wood cutting capacity: 210 mm','Metal cutting capacity: 12 mm','Brushless motor','20 V P20S platform']);
+  assert.equal(p.excluded[0].value,'Battery and charger sold separately');
+  assert.equal(p.model.value,null);assert.equal(p.nettPrice.value,null);
+});
