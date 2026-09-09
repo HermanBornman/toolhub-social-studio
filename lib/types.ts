@@ -27,12 +27,13 @@ discountedPrice: string;
 startDate: string;
 endDate: string;
 stock: string;
+condition?: string;
 characterGender: "female" | "male";
 emotion: string;
 product: string;
 };
 
-export type SupplierPage = { dataUrl: string; page: number };
+export type SupplierPage = { dataUrl: string; page: number; embeddedText?: string };
 export type GeneratedAdvert = {
 page: number;
 product: ProductDetails;
