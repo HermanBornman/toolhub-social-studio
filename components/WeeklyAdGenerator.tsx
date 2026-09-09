@@ -2,6 +2,9 @@
 
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
+import { isolatePdfProduct, readSupplierPage } from "@/lib/pdf-product-image";
+import { applyNoPriceProduct } from "@/lib/supplier-reading";
+import type { SupplierReading } from "@/lib/supplier-reading";
 import { renderAdvert } from "@/lib/advert-renderer";
 import { findCatalogProduct } from "@/lib/catalog";
 import { isolateProduct, isolateUploadedPhoto } from "@/lib/image-processing";
@@ -39,6 +42,8 @@ male: [
 function characterAsset(gender: AdvertForm["characterGender"], emotion: string) {
 return gender === "male" ? `/toolhub/character-male-${emotion}.png` : `/toolhub/mascot-${emotion}.png`;
 }
+
+type NoPriceDraft = { page: SupplierPage; reading?: SupplierReading; selected: number; image: string; error: string; approved?: boolean };
 
 type OcrWorker = {
 recognize(image: string): Promise<{ data: { text: string } }>;
@@ -95,6 +100,12 @@ const canvasRef = useRef<HTMLCanvasElement>(null);
 const supplierInputRef = useRef<HTMLInputElement>(null);
 const photoInputRef = useRef<HTMLInputElement>(null);
 const cameraInputRef = useRef<HTMLInputElement>(null);
+const [noPricing, setNoPricing] = useState(false);
+const [accessCode, setAccessCode] = useState("");
+const [drafts, setDrafts] = useState<NoPriceDraft[]>([]);
+const [reviewPage, setReviewPage] = useState<number | null>(null);
+const [reviewed, setReviewed] = useState(false);
+const [preparing, setPreparing] = useState(false);
 const [form, setForm] = useState<AdvertForm>(INITIAL_FORM);
 const [previewReady, setPreviewReady] = useState(false);
 const [supplierPages, setSupplierPages] = useState<SupplierPage[]>([]);
@@ -111,6 +122,8 @@ const [batchStatus, setBatchStatus] = useState("");
 const [photoProcessing, setPhotoProcessing] = useState(false);
 const [photoProgress, setPhotoProgress] = useState(0);
 const [photoError, setPhotoError] = useState("");
+
+useEffect(() => { setReviewed(false); }, [form]);
 
 const finalStore = useMemo(() => storeDetails(form), [form.store, form.customStore]);
 const characterOptions = CHARACTER_OPTIONS[form.characterGender];
@@ -171,6 +184,8 @@ const handleSupplierFile = async (file?: File) => {
 if (!file) return;
 setSupplierName(file.name);
 setSupplierPages([]);
+setDrafts([]);
+setReviewPage(null);
 setBatch([]);
 setSupplierError("");
 setBatchStatus("");
@@ -193,6 +208,7 @@ setPhotoProgress(0.04);
 try {
 const product = await isolateUploadedPhoto(file, setPhotoProgress);
 update("product", product);
+if (reviewPage !== null) { setDrafts(items => items.map(item => item.page.page === reviewPage ? { ...item, image: product, error: "", approved: false } : item)); setReviewed(false); }
 setPhotoProgress(1);
 } catch {
 setPhotoError("We could not process this photo. Please use a JPG or PNG with the full product visible.");
@@ -267,7 +283,77 @@ setBatching(false);
 }
 };
 
-const generateAll = () => generatePages(supplierPages.map((_, index) => index));
+const reviewDraft = drafts.find(draft => draft.page.page === reviewPage);
+
+const reviewProduct = (draft: NoPriceDraft, selected = draft.selected) => {
+  const product = draft.reading?.products[selected];
+  setReviewPage(draft.page.page);
+  setReviewed(false);
+  // Deliberately retain every existing pricing field and calculator state.
+  setForm(current => applyNoPriceProduct(current, product, draft.image || "/toolhub/sample-product.webp"));
+};
+
+const prepareNoPricePages = async (indexes: number[]) => {
+  if (preparing || batching) return;
+  if (!accessCode) { setSupplierError("Enter the staff AI-service access code to read the PDF."); return; }
+  setPreparing(true); setSupplierError("");
+  const completed: NoPriceDraft[] = [];
+  try {
+    for (const index of indexes) {
+      const page = supplierPages[index];
+      const draft: NoPriceDraft = { page, selected: 0, image: "", error: "" };
+      try {
+        setBatchStatus(`Page ${page.page}: reading product details from the source…`);
+        draft.reading = await readSupplierPage(page.dataUrl, page.embeddedText || "", accessCode);
+        if (draft.reading.products.length === 1) {
+          setBatchStatus(`Page ${page.page}: isolating the main product image…`);
+          const product = draft.reading.products[0];
+          draft.image = await isolatePdfProduct(page.dataUrl, accessCode, `${product.title.value || ""} ${product.model.value || ""}`);
+        } else {
+          draft.error = draft.reading.products.length ? "Choose the product below before extracting its image." : "No readable product found. Enter the details and upload a separate product image.";
+        }
+      } catch (error) { draft.error = error instanceof Error ? error.message : "This page could not be processed."; }
+      completed.push(draft);
+      setDrafts(current => [...current.filter(item => item.page.page !== page.page), draft].sort((a,b) => a.page.page-b.page.page));
+    }
+    if (completed[0]) reviewProduct(completed[0]);
+    setBatchStatus(`${completed.length} page drafts ready. Review each image and enter pricing using the existing controls.`);
+  } finally { setPreparing(false); }
+};
+
+const extractSelected = async () => {
+  if (!reviewDraft || preparing) return;
+  setPreparing(true); setReviewed(false);
+  const product = reviewDraft.reading?.products[reviewDraft.selected];
+  try {
+    const image = await isolatePdfProduct(reviewDraft.page.dataUrl, accessCode, `${product?.title.value || form.title} ${product?.model.value || form.model}`);
+    setDrafts(items => items.map(item => item.page.page === reviewPage ? { ...item, image, error: "", approved: false } : item));
+    update("product", image);
+  } catch (error) { setSupplierError(error instanceof Error ? error.message : "Image extraction failed."); }
+  finally { setPreparing(false); }
+};
+
+const approveNoPriceDraft = async () => {
+  if (!reviewDraft || !reviewed || preparing) return;
+  const price = Number((form.saleEnabled ? form.discountedPrice : form.price).replace(/[^0-9.]/g, ""));
+  if (!form.title.trim() || !reviewDraft.image || form.product !== reviewDraft.image || !Number.isFinite(price) || price <= 0) {
+    setSupplierError("Check the product name, product image and selling price in the existing controls."); return;
+  }
+  setPreparing(true);
+  try {
+    const canvas = document.createElement("canvas");
+    await renderAdvert(canvas, form, finalStore.name, finalStore.address);
+    const product: ProductDetails = { title: form.title, model: form.model, barcode: "", description: form.description, specs: form.specs, prices: {} };
+    const item: GeneratedAdvert = { page: reviewDraft.page.page, product, form: { ...form }, advert: canvas.toDataURL("image/png"), sellingPrice: price };
+    setBatch(current => [...current.filter(entry => entry.page !== item.page),item].sort((a,b)=>a.page-b.page));
+    setDrafts(current => current.map(draft => draft.page.page === reviewPage ? { ...draft, approved:true } : draft));
+    setReviewPage(null); setReviewed(false); setSupplierError("");
+    setBatchStatus(`Page ${item.page}: approved advert ready.`);
+  } catch { setSupplierError("Advert export failed. Your draft is still available."); }
+  finally { setPreparing(false); }
+};
+
+const generateAll = () => (noPricing ? prepareNoPricePages : generatePages)(supplierPages.map((_, index) => index));
 
 const downloadZip = async () => {
 if (!batch.length) return;
@@ -317,17 +403,41 @@ return (
 
 <section className="form-section supplier-section">
 <SectionTitle icon="▤">Read supplier sheet</SectionTitle>
+<label className="no-price-option"><input type="checkbox" checked={noPricing} disabled={batching || preparing} onChange={event => setNoPricing(event.target.checked)} /> This PDF has no pricing: read details and isolate the product</label>
+{noPricing && <Field label="Staff AI-service access code"><input type="password" autoComplete="off" value={accessCode} onChange={event => setAccessCode(event.target.value)} /></Field>}
 <p className="section-help">Upload a supplier PDF. The app reads every page, extracts only the product image and creates one complete advert per page.</p>
-<button className="button secondary full" type="button" disabled={batching} onClick={() => supplierInputRef.current?.click()}>▤ Choose PDF or image</button>
+<button className="button secondary full" type="button" disabled={batching || preparing} onClick={() => supplierInputRef.current?.click()}>▤ Choose PDF or image</button>
 <input ref={supplierInputRef} hidden type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(event: ChangeEvent<HTMLInputElement>) => { handleSupplierFile(event.target.files?.[0]); event.target.value = ""; }} />
 {supplierName && <div className="file-summary"><span>▧ {supplierName}</span><strong>{supplierPages.length} page{supplierPages.length === 1 ? "" : "s"}</strong></div>}
-{!!supplierPages.length && <div className="page-strip" aria-label="Choose supplier product page">{supplierPages.map((page, index) => <button key={page.page} type="button" disabled={batching} title={`Generate page ${page.page}`} onClick={() => generatePages([index])}><img src={page.dataUrl} alt={`Supplier page ${page.page}`} /><span>Page {page.page}</span></button>)}</div>}
-{!!supplierPages.length && <button className="button primary full" type="button" disabled={batching} onClick={generateAll}>{batching ? "Generating all adverts..." : `Generate all ${supplierPages.length} advert${supplierPages.length === 1 ? "" : "s"}`}</button>}
+{!!supplierPages.length && <div className="page-strip" aria-label="Choose supplier product page">{supplierPages.map((page, index) => <button key={page.page} type="button" disabled={batching || preparing} title={`Generate page ${page.page}`} onClick={() => (noPricing ? prepareNoPricePages : generatePages)([index])}><img src={page.dataUrl} alt={`Supplier page ${page.page}`} /><span>Page {page.page}</span></button>)}</div>}
+{!!supplierPages.length && <button className="button primary full" type="button" disabled={batching || preparing} onClick={generateAll}>{batching || preparing ? "Processing pages..." : noPricing ? `Read & isolate ${supplierPages.length} page(s)` : `Generate all ${supplierPages.length} advert${supplierPages.length === 1 ? "" : "s"}`}</button>}
 {supplierStatus && <div className="status success"><strong>✓ {supplierStatus}</strong></div>}
 {batchStatus && <div className="status working"><strong>{batchStatus}</strong>{batching && <progress max="100" value={batchProgress} />}</div>}
 {supplierError && <div className="status error">{supplierError}</div>}
 
-{!!batch.length && <div className="batch-results"><div className="batch-title"><div><p className="eyebrow">Batch ready</p><strong>{batch.length} adverts generated</strong></div><button className="button primary" type="button" disabled={batching} onClick={downloadZip}>Download ZIP</button></div><div className="batch-grid">{batch.map((item) => <article key={`${item.page}-${item.product.model}`}><img src={item.advert} alt={`Generated advert for ${item.product.title}`} /><small>PAGE {item.page} · {item.product.model}</small><strong>{item.product.title}</strong><span>{formatPrice(item.sellingPrice)}</span><div><button type="button" onClick={() => editBatchItem(item)}>Edit</button><button type="button" onClick={() => downloadDataUrl(item.advert, `toolhub-${slug(item.product.model || item.product.title)}.png`)}>Download</button></div></article>)}</div></div>}
+{!!drafts.length && <div className="no-price-drafts">
+<strong>PDF drafts without pricing</strong>
+<div className="page-strip">{drafts.map(draft => <button key={draft.page.page} disabled={preparing} onClick={() => reviewProduct(draft)}><img src={draft.image || draft.page.dataUrl} alt={`Page ${draft.page.page} draft`} /><span>Page {draft.page.page}{draft.approved ? " ✓" : " · Review"}</span></button>)}</div>
+</div>}
+{reviewDraft && <div className="no-price-review">
+<strong>Review page {reviewDraft.page.page}</strong>
+<p>AI image editing can change small details. Compare the product, logo, attached parts and edges with the original. Pricing has not been imported or changed.</p>
+<div className="source-product-pair"><figure><img src={reviewDraft.page.dataUrl} alt="Original supplier page" /><figcaption>Original page</figcaption></figure><figure><img src={reviewDraft.image || reviewDraft.page.dataUrl} alt={reviewDraft.image ? "Isolated product for approval" : "No product image extracted yet"} /><figcaption>{reviewDraft.image ? "Isolated product — review required" : "Extraction required"}</figcaption></figure></div>
+{reviewDraft.reading && reviewDraft.reading.products.length > 1 && <Field label="Choose the product on this page"><select value={reviewDraft.selected} onChange={event => {
+  const selected = Number(event.target.value);
+  const changed = { ...reviewDraft, selected, image: "", approved: false };
+  setDrafts(items => items.map(item => item.page.page === reviewPage ? changed : item)); reviewProduct(changed,selected);
+}}>{reviewDraft.reading.products.map((product,index) => <option key={index} value={index}>{product.title.value || `Product ${index+1}`} {product.model.value}</option>)}</select></Field>}
+{reviewDraft.error && <div className="status error">{reviewDraft.error}</div>}
+{reviewDraft.reading?.warnings.map((warning,index) => <p key={index}>{warning}</p>)}
+<details><summary>Extracted text, specifications and confidence</summary><pre>{reviewDraft.reading?.rawText || "Not found — enter the details manually below."}</pre>{reviewDraft.reading?.products[reviewDraft.selected] && Object.entries(reviewDraft.reading.products[reviewDraft.selected]).map(([key,value]) => <div key={key}><strong>{key}</strong>{(Array.isArray(value) ? value : [value]).map((field,index) => <p key={index}>{field.value || "Not found"} — {field.confidence} confidence{field.evidence ? ` · Source: ${field.evidence}` : ""}</p>)}</div>)}</details>
+<button type="button" className="button secondary full" disabled={preparing || !accessCode} onClick={extractSelected}>Retry / extract selected product</button>
+<p>Edit the product information below. Use the existing Offer & character section to enter the selling price.</p>
+<label className="no-price-option"><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} /> I have checked the image, specifications, exclusions and manually entered selling price.</label>
+<button type="button" className="button primary full" disabled={!reviewed || preparing || !reviewDraft.image} onClick={approveNoPriceDraft}>Approve & generate this advert</button>
+</div>}
+
+{!!batch.length && <div className="batch-results"><div className="batch-title"><div><p className="eyebrow">Batch ready</p><strong>{batch.length} adverts generated</strong></div><button className="button primary" type="button" disabled={batching || preparing} onClick={downloadZip}>Download ZIP</button></div><div className="batch-grid">{batch.map((item) => <article key={`${item.page}-${item.product.model}`}><img src={item.advert} alt={`Generated advert for ${item.product.title}`} /><small>PAGE {item.page} · {item.product.model}</small><strong>{item.product.title}</strong><span>{formatPrice(item.sellingPrice)}</span><div><button type="button" onClick={() => editBatchItem(item)}>Edit</button><button type="button" onClick={() => downloadDataUrl(item.advert, `toolhub-${slug(item.product.model || item.product.title)}.png`)}>Download</button></div></article>)}</div></div>}
 </section>
 
 <section className="form-section">
@@ -340,6 +450,7 @@ return (
 {photoError && <div className="status error">{photoError}</div>}
 <Field label="Product name"><input value={form.title} onChange={(event) => update("title", event.target.value)} maxLength={52} /></Field>
 <Field label="Model number"><input value={form.model} onChange={(event) => update("model", event.target.value)} maxLength={24} placeholder="Filled from supplier sheet" /></Field>
+{reviewPage !== null && <Field label="Excluded items / important conditions"><textarea value={form.condition || ""} onChange={event => update("condition",event.target.value)} rows={2} /></Field>}
 <Field label="Short description"><textarea value={form.description} onChange={(event) => update("description", event.target.value)} maxLength={110} rows={2} /></Field>
 <div className="two-col">{form.specs.map((spec, index) => <Field key={index} label={`Specification ${index + 1}`}><input value={spec} onChange={(event) => update("specs", form.specs.map((value, specIndex) => specIndex === index ? event.target.value : value))} maxLength={34} /></Field>)}</div>
 </section>
@@ -357,7 +468,7 @@ return (
 </aside>
 
 <section className="preview-panel">
-<div className="preview-toolbar"><div><p className="eyebrow">Live preview</p><strong>1080 x 1350 social post</strong></div><div className="toolbar-actions"><button className="button secondary" type="button" onClick={() => { setForm(INITIAL_FORM); setSupplierPrice(""); }}>↶ Reset</button><button className="button primary" type="button" disabled={!previewReady} onClick={() => canvasRef.current && downloadDataUrl(canvasRef.current.toDataURL("image/png"), `toolhub-${slug(form.model || form.title)}.png`)}>⇩ Download PNG</button></div></div>
+<div className="preview-toolbar"><div><p className="eyebrow">Live preview</p><strong>1080 x 1350 social post</strong></div><div className="toolbar-actions"><button className="button secondary" type="button" onClick={() => { setForm(INITIAL_FORM); setSupplierPrice(""); }}>↶ Reset</button><button className="button primary" type="button" disabled={!previewReady || reviewPage !== null || preparing} onClick={() => canvasRef.current && downloadDataUrl(canvasRef.current.toDataURL("image/png"), `toolhub-${slug(form.model || form.title)}.png`)}>⇩ Download PNG</button></div></div>
 <div className="canvas-stage"><canvas ref={canvasRef} width="1080" height="1350" aria-label="Generated Toolhub advert preview" /></div>
 <div className="preview-footer"><span>▣ {form.startDate} - {form.endDate}</span><span>Store: {finalStore.name}{finalStore.address ? ` · ${finalStore.address}` : ""}</span></div>
 </section>
