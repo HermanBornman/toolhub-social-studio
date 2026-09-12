@@ -1,14 +1,15 @@
+import { requirePageUser } from "@/lib/auth/page";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { PlanActions } from "@/components/PlanActions";
 import { PlanItemEditor } from "@/components/PlanItemEditor";
 import { AdvertPreview } from "@/components/AdvertPreview";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/user-role";
+
 import type { AdvertFormData } from "@/lib/advert";
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const user = getCurrentUser();
+export default async function Page({ params }: { params: Promise<{ id: string }> }) { await requirePageUser();
+  const user = (await requirePageUser());
   if (!["MARKETING", "MANAGER", "ADMIN"].includes(user.role)) redirect("/");
   const id = (await params).id;
   const [plan, approvedAdverts] = await Promise.all([

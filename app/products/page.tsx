@@ -1,13 +1,14 @@
+import { requirePageUser } from "@/lib/auth/page";
 import Link from "next/link";
 import { PackagePlus, Search, ImageOff, Image as ImageIcon, Pencil, Megaphone } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { formatZar } from "@/lib/format-price";
-import { getCurrentUser, canManageProducts } from "@/lib/user-role";
+import {canManageProducts} from "@/lib/user-role";
 
-export default async function ProductsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+export default async function ProductsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) { await requirePageUser();
   const params = await searchParams; const q = params.q?.trim() || ""; const state = params.state || "ACTIVE";
-  const user=getCurrentUser(); const canManage=canManageProducts(user.role);
+  const user=(await requirePageUser()); const canManage=canManageProducts(user.role);
   const products = await prisma.product.findMany({ where: {
     active: state === "ALL" ? undefined : state === "INACTIVE" ? false : true,
     OR: q ? ["sku", "productName", "barcode", "brand", "category"].map((field) => ({ [field]: { contains: q } })) : undefined,

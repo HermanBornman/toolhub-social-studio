@@ -40,6 +40,7 @@
     "lib/final-artwork.ts",
     "lib/authorization.ts",
     "lib/correction-audit.ts",
-    "app/api/**/*.ts"
+    "app/api/**/*.ts",
+    "lib/auth/*.ts"
   ]
 }

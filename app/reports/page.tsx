@@ -1,8 +1,9 @@
+import { requirePageUser } from "@/lib/auth/page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/user-role";
+
 import { buildOperationalReport } from "@/lib/reports";
 
 function reportRange(filter: string, customStart?: string, customEnd?: string) {
@@ -12,8 +13,8 @@ function reportRange(filter: string, customStart?: string, customEnd?: string) {
   return { start, end };
 }
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ range?: string; start?: string; end?: string }> }) {
-  const user = getCurrentUser();
+export default async function Page({ searchParams }: { searchParams: Promise<{ range?: string; start?: string; end?: string }> }) { await requirePageUser();
+  const user = (await requirePageUser());
   if (!["MARKETING", "MANAGER", "ADMIN"].includes(user.role)) redirect("/");
   const query = await searchParams;
   const filter = query.range || "30d";

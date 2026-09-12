@@ -6,11 +6,17 @@ process.env.SOCIAL_PUBLISHING_MODE='dry-run';process.env.AI_MODE='mock';process.
 delete process.env.SUPABASE_URL;delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 // Compile-time aliases resolved only inside this isolated Node test process.
 const Module=require('node:module'),resolve=Module._resolveFilename;
-Module._resolveFilename=function(name,...rest){return resolve.call(this,name.startsWith('@/')?path.resolve('.test-dist',name.slice(2)):name,...rest)};
+Module._resolveFilename=function(name,...rest){return resolve.call(this,name==='server-only'?path.resolve('tests/server-only-fixture.cjs'):name.startsWith('@/')?path.resolve('.test-dist',name.slice(2)):name,...rest)};
 const {prisma}=require('../.test-dist/lib/prisma');
+process.env.APP_URL='http://localhost';
+const authPath=require.resolve('../.test-dist/lib/auth/server');
+require.cache[authPath]={id:authPath,filename:authPath,loaded:true,exports:{
+ getCurrentUser:async()=>{const role=process.env.TOOLHUB_USER_ROLE;if(!['STAFF','MARKETING','MANAGER','ADMIN'].includes(role))throw Error('UNAUTHENTICATED');const id=process.env.TOOLHUB_USER_ID;return{id,name:'Toolhub '+role,email:id+'@toolhub.local',role}},
+ withRequestUser:(_user,fn)=>fn()
+}};
 const route=name=>require('../.test-dist/app/api/'+name+'/route');
 const actor=(role,id=role.toLowerCase())=>{process.env.TOOLHUB_USER_ROLE=role;process.env.TOOLHUB_USER_ID=id;return {id,name:'Toolhub '+role,email:id+'@toolhub.local',role}};
-const req=(body,method='POST')=>new Request('http://localhost/api/test',{method,headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+const req=(body,method='POST')=>new Request('http://localhost/api/test',{method,headers:{'content-type':'application/json',origin:'http://localhost'},body:JSON.stringify(body)});
 const params=id=>({params:Promise.resolve({id})});
 const input=()=>({...TEST_ADVERT,sku:'REAL-TEST-SAW',productName:'Reciprocating saw',primarySpecification:'Wood: 210 mm',secondarySpecification:'Metal: 12 mm',feature01:'12 mm metal cutting capacity',feature02:'',sellingPrice:'1299',pricingMethod:'MANUAL',originalImageUrl:dataUrl(),processedImageUrl:dataUrl(),backgroundRemovalStatus:'COMPLETE'});
 let staff,manager,admin;

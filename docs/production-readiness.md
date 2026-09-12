@@ -2,7 +2,7 @@
 
 ## Deployment boundary
 
-Do not expose this app publicly as a multi-user production service yet. `lib/user-role.ts` currently derives identity/role from process environment, not an authenticated per-user session. An externally authenticated, access-controlled internal deployment needs an explicitly reviewed identity boundary; public deployment needs production authentication. This task does not add an identity feature. Publishing remains dry-run/manual unless separately configured and approved.
+Do not expose this app publicly yet. Production authentication is now implemented with Supabase Auth, revocable server sessions and local database roles; see `production-authentication.md`. Hosted provider/SMTP configuration and production security review are still required, as is migration rehearsal using a production backup. Environment identity variables no longer authenticate users. Publishing remains dry-run/manual unless separately configured and approved.
 
 No IQ Retail work, merge, scheduling or publishing is part of this change.
 
@@ -47,7 +47,7 @@ npx prisma migrate deploy
 npx prisma migrate status
 ```
 
-For a database already matching the FULL current schema (as the local database does), also resolve only already-present PDF/pricing/power/audit-alignment migrations before deploying:
+For a database already matching the full pre-authentication schema through audit-retention alignment (as the original local database did), also resolve only already-present PDF/pricing/power/audit-alignment migrations before deploying:
 
 ```powershell
 npx prisma migrate resolve --applied 20260910_pdf_import_workflow
@@ -57,6 +57,8 @@ npx prisma migrate resolve --applied 20260913_audit_retention_alignment
 npx prisma migrate deploy
 npx prisma migrate diff --from-url "$env:DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
 ```
+
+The new `20260914_production_authentication` migration is additive and must normally be applied by `migrate deploy`, not marked as already applied. It has only been tested on disposable databases, not production.
 
 Skip `resolve` for entries already successfully recorded. Never run the full-current-schema sequence on a database lacking those structures. Any other drift requires a reviewed migration tailored to that actual schema; stop instead of guessing. Production has not been accessed or modified in this task.
 

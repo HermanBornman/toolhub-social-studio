@@ -3,7 +3,7 @@ const {PNG}=require('pngjs');const {png,dataUrl}=require('./png-fixture.cjs');
 const {validatePng}=require('../.test-dist/lib/png-transparency');
 const {validateProductImages,validateSourceImage}=require('../.test-dist/lib/server-image');
 const {authorize}=require('../.test-dist/lib/authorization');
-const {getCurrentUser,canEditAdvert}=require('../.test-dist/lib/user-role');
+const {canEditAdvert}=require('../.test-dist/lib/user-role');
 const {EMPTY_ADVERT}=require('../.test-dist/lib/advert');
 const {dedupeSpecFields,uniqueSpecifications}=require('../.test-dist/lib/specifications');
 const {heuristicPageAnalysis}=require('../.test-dist/lib/pdf-import');
@@ -35,9 +35,10 @@ test('COMPLETE image cannot be empty; source decoding does not trust JPEG/WebP M
 });
 test('STAFF blocked from marketing, manager and admin functions',()=>{for(const permission of ['MARKETING','REVIEW','ADMIN'])assert.throws(()=>authorize(permission,user('STAFF')),/FORBIDDEN/)});
 test('MARKETING cannot modify admin settings',()=>assert.throws(()=>authorize('ADMIN',user('MARKETING')),/FORBIDDEN/));
-test('explicit no-user state and absent/invalid configured identity denied',()=>{
+test('explicit no-user state and absent/invalid identity denied',()=>{
  assert.throws(()=>authorize('READ',null),/UNAUTHENTICATED/);
- const previous=process.env.TOOLHUB_USER_ROLE;try{delete process.env.TOOLHUB_USER_ROLE;assert.throws(getCurrentUser,/UNAUTHENTICATED/);process.env.TOOLHUB_USER_ROLE='INVALID';assert.throws(getCurrentUser,/UNAUTHENTICATED/);}finally{if(previous===undefined)delete process.env.TOOLHUB_USER_ROLE;else process.env.TOOLHUB_USER_ROLE=previous;}
+ assert.throws(()=>authorize('READ'),/UNAUTHENTICATED/);
+ assert.throws(()=>authorize('READ',{...user('STAFF'),role:'INVALID'}),/UNAUTHENTICATED/);
 });
 test('even Admin cannot edit submitted or approved artwork snapshots',()=>{for(const status of ['AWAITING_APPROVAL','APPROVED','PUBLISHED'])assert.equal(canEditAdvert({status,createdByUserId:'x'},user('ADMIN')),false)});
 test('real forms have no runtime fixture product, price, specs or inclusion assumptions',()=>{for(const key of ['productName','sku','sellingPrice','primarySpecification','secondarySpecification','feature01','feature02'])assert.equal(EMPTY_ADVERT[key],'');assert.equal(require('../.test-dist/lib/advert').TEST_ADVERT,undefined)});

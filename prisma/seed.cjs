@@ -24,7 +24,7 @@ async function main() {
   });
   const seedDemo = process.env.TOOLHUB_SEED_DEMO === "true" && process.env.NODE_ENV !== "production";
   for (const [id, name, role] of seedDemo ? users : []) {
-    await prisma.user.upsert({ where: { id }, update: { name, role }, create: { id, name, role, email: `${id}@toolhub.local` } });
+    await prisma.user.upsert({ where: { id }, update: {}, create: { id, name, role, email: `${id}@toolhub.local` } });
   }
   for (const [id, displayName, assetPath] of moods) {
     const data = { id, displayName, assetPath, thumbnailPath: assetPath, active: true, defaultScale: 1, xPosition: 0, yPosition: 0 };

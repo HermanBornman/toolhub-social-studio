@@ -20,7 +20,7 @@ Every PDF correction/confirmation appends before/after analysis, specifications,
 
 ## Authorization and defaults
 
-Every API handler has a centralized permission gate before reading or mutating data. Ownership, status and independent-approval checks remain enforced. Service publishing/plan actions validate the actor before idempotency lookups. An absent or invalid explicitly configured local identity is denied. This is authorization hardening, not production authentication: the environment-backed development identity is still a public-deployment blocker.
+Every API handler has a centralized permission gate before reading or mutating data. Ownership, status and independent-approval checks remain enforced. Service publishing/plan actions validate the actor before idempotency lookups. The subsequent authentication implementation now resolves a verified Supabase session and local active/role mapping. Environment identity is no longer accepted. See `production-authentication.md` for the current session, onboarding and security boundaries.
 
 New forms have blank product/price/specification fields. Fixtures live under tests. Seeded demo products and identities require `TOOLHUB_SEED_DEMO=true` and are disabled when `NODE_ENV=production`; ordinary seeding installs only template, mascot and planning metadata.
 
@@ -30,4 +30,4 @@ Deduplication preserves the first normalized occurrence across specification/fea
 
 ## Deployment holds
 
-Do not expose this environment-identity application publicly. Implement real sessions and retain these server authorization gates in a separate production-authentication change. Rehearse the existing baseline/migration runbook on a restored production backup before any production database action. This task does not change applied migration SQL or touch production data. Remaining dependency findings require targeted follow-up, not a forced broad upgrade.
+Do not expose the application publicly until the implemented Supabase/session boundary passes production security review and hosted provider/SMTP verification. These server authorization gates remain in place. Rehearse the existing baseline/migration runbook on a restored production backup before any production database action. This task does not change applied migration SQL or touch production data. Remaining dependency findings require targeted follow-up, not a forced broad upgrade.

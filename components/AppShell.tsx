@@ -19,8 +19,8 @@ const nav = [
 
 export function AppShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   const pathname = usePathname();
-  const [user,setUser]=useState({name:"Toolhub Staff",role:"STAFF"});
-  useEffect(()=>{fetch("/api/session").then(r=>r.json()).then(value=>{if(value.name)setUser(value)});},[]);
+  const [user,setUser]=useState({name:"",role:""});
+  useEffect(()=>{fetch("/api/session").then(r=>r.json()).then(value=>{if(value.name)setUser(value);else window.location.assign("/login")});},[]);
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -31,6 +31,7 @@ export function AppShell({ title, subtitle, children }: { title: string; subtitl
         <p className="nav-label">WORKSPACE</p>
         <nav className="main-nav" aria-label="Main navigation">
           {nav.map(({ href, label, icon: Icon }) => {
+            if (!user.role) return null;
             if (user.role === "MANAGER" && ["/create","/settings"].includes(href)) return null;
             if (user.role === "STAFF" && ["/planner","/reports","/settings"].includes(href)) return null;
             if (!["MANAGER","ADMIN"].includes(user.role) && href === "/approvals") return null;
@@ -42,6 +43,8 @@ export function AppShell({ title, subtitle, children }: { title: string; subtitl
             );
           })}
         </nav>
+        {user.role === "ADMIN" && <Link href="/settings/users" className="secondary-button">User access</Link>}
+        <button className="secondary-button" onClick={async () => { const response = await fetch("/api/auth/logout", {method:"POST"}); if(response.ok) window.location.assign("/login"); }}>Sign Out</button>
         <div className="template-card">
           <span>ACTIVE TEMPLATE</span>
           <strong>Social Master V1</strong>

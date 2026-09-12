@@ -8,6 +8,11 @@ datasource db {
 }
 
 model User {
+  authProvider       String?
+  authProviderUserId String?
+  active             Boolean @default(true)
+  sessions           AuthSession[]
+  @@unique([authProvider, authProviderUserId])
   id               String                 @id
   email            String                 @unique
   name             String
@@ -456,4 +461,25 @@ model PdfImportPage {
   @@unique([pdfImportId, pageNumber])
   @@index([status])
   @@index([advertisementId])
+}
+
+// Only a SHA-256 digest of the browser session secret is stored.
+// Provider credentials are encrypted with the server's AUTH_ENCRYPTION_KEY.
+model AuthSession {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerTokens String
+  expiresAt DateTime
+  purpose String @default("APP")
+  createdAt DateTime @default(now())
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuthThrottle {
+  id String @id
+  attempts Int @default(1)
+  expiresAt DateTime
+  @@index([expiresAt])
 }

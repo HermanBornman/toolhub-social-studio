@@ -1,3 +1,4 @@
+import { ensureCurrentUser } from "@/lib/server-user";
 import { withAuthorization } from "@/lib/route-authorization";
 import { NextResponse } from "next/server";
 import { removeProductBackground } from "@/lib/remove-background";
@@ -8,7 +9,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 async function POSTHandler(request: Request) {
-  const allowOriginalFallback = canUseOriginalImage();
+  const allowOriginalFallback = canUseOriginalImage((await ensureCurrentUser()).role);
 
   try {
     const form = await request.formData();
