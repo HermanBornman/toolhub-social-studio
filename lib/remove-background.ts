@@ -1,3 +1,5 @@
+import { validateSourceImage } from "./server-image";
+import { validatePng } from "./png-transparency";
 import { validateProductImageUpload } from "./product-image";
 
 const PHOTOROOM_ENDPOINT = "https://sdk.photoroom.com/v1/segment";
@@ -13,6 +15,7 @@ export async function removeProductBackground(file: File, apiKey: string, fetche
   if (validationError) throw new Error(validationError);
   if (!apiKey) throw new Error("Background removal is not configured");
 
+  await validateSourceImage(`data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`);
   const form = new FormData();
   form.append("image_file", file, file.name || "product-image");
   form.append("size", "full");
@@ -36,12 +39,9 @@ export async function removeProductBackground(file: File, apiKey: string, fetche
   }
 
   const bytes = await response.arrayBuffer();
-  const pngBytes = new Uint8Array(bytes);
-  const signature = pngBytes.slice(0, 8);
-  const isPng = signature.length === 8 && signature.every((value, index) => value === [137, 80, 78, 71, 13, 10, 26, 10][index]);
-  if (!isPng) throw new Error("Background removal did not return a transparent PNG");
-  const colorType = pngBytes[25];
-  if (colorType !== 4 && colorType !== 6) throw new Error("Background removal PNG does not contain alpha transparency");
+  if (response.headers.get("content-type")?.split(";")[0] !== "image/png") throw new Error("Background removal did not return a transparent PNG");
+  try { validatePng(pngDataUrl(bytes),{transparent:true}); }
+  catch { throw new Error("Background removal did not return a valid transparent PNG with alpha transparency"); }
 
   return {
     processedImageUrl: pngDataUrl(bytes),

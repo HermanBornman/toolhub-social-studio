@@ -1,3 +1,4 @@
+import { dedupeSpecFields } from "./specifications";
 import { z } from "zod";
 
 const optionalUrl = z.string().trim().refine((value) => !value || z.string().url().safeParse(value).success, "Enter a valid URL");
@@ -20,7 +21,7 @@ export const productSchema = z.object({
   processedImageUrl: z.string().default(""),
   backgroundRemovalStatus: z.enum(["PENDING", "PROCESSING", "COMPLETE", "FAILED"]).default("PENDING"),
   active: z.boolean().default(true),
-});
+}).transform(dedupeSpecFields);
 
 export type ProductInput = z.input<typeof productSchema>;
 export type ProductRecord = z.output<typeof productSchema> & { id: string };
@@ -32,7 +33,7 @@ export function productMatchesSearch(product: Pick<ProductRecord, "sku" | "produ
 }
 
 export function productToAdvertSnapshot(product: ProductRecord) {
-  return {
+  return dedupeSpecFields({
     productId: product.id,
     productName: product.productName,
     sku: product.sku,
@@ -47,5 +48,5 @@ export function productToAdvertSnapshot(product: ProductRecord) {
     processedImageUrl: product.processedImageUrl,
     backgroundRemovalStatus: product.backgroundRemovalStatus,
     useOriginalImage: false,
-  };
+  });
 }

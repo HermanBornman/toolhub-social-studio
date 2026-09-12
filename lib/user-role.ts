@@ -8,6 +8,7 @@ export function currentUserRole(): UserRole {
 }
 
 export function getCurrentUser(): CurrentUser {
+  if (!process.env.TOOLHUB_USER_ROLE || !USER_ROLES.includes(process.env.TOOLHUB_USER_ROLE.toUpperCase() as UserRole)) throw new Error("UNAUTHENTICATED");
   const role = currentUserRole();
   return {
     id: process.env.TOOLHUB_USER_ID || `dev-${role.toLowerCase()}-1`,
@@ -17,7 +18,8 @@ export function getCurrentUser(): CurrentUser {
   };
 }
 
-export function requireRole(allowed: readonly UserRole[], user = getCurrentUser()) {
+export function requireRole(allowed: readonly UserRole[], user: CurrentUser | null = getCurrentUser()) {
+  if (!user || !user.id || !USER_ROLES.includes(user.role)) throw new Error("UNAUTHENTICATED");
   if (!allowed.includes(user.role)) throw new Error("FORBIDDEN");
   return user;
 }
@@ -39,8 +41,9 @@ export function canReviewAdvert(role: UserRole) {
 }
 
 export function canEditAdvert(advert: { status: string; createdByUserId: string }, user = getCurrentUser()) {
-  if (user.role === "ADMIN") return true;
-  if (user.role === "MARKETING") return ["DRAFT", "CHANGES_REQUESTED", "AWAITING_APPROVAL"].includes(advert.status);
+  requireRole(USER_ROLES, user);
+  if (!["DRAFT", "CHANGES_REQUESTED"].includes(advert.status)) return false;
+  if (user.role === "ADMIN" || user.role === "MARKETING") return true;
   return advert.createdByUserId === user.id && ["DRAFT", "CHANGES_REQUESTED"].includes(advert.status);
 }
 

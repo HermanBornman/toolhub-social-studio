@@ -1,3 +1,4 @@
+import { dedupeSpecFields } from "./specifications";
 import { powerInclusionSchema } from "./power-inclusion";
 import { z } from "zod";
 import type { Mood } from "./moods";
@@ -53,18 +54,19 @@ export type AdvertFormData = {
   qrUrl: string;
 };
 
-export const TEST_ADVERT: AdvertFormData = {
+export const EMPTY_ADVERT: AdvertFormData = {
+  pricingMethod: "MANUAL",
   productId: undefined,
-  productName: "20V CORDLESS DRILL KIT",
-  sku: "TEST-CIDLI20",
-  primarySpecification: "2 x 2.0Ah BATTERIES + CHARGER",
-  secondarySpecification: "Compact, powerful drilling and screwdriving kit",
-  feature01: "20V POWER",
-  feature02: "2 BATTERIES",
-  keyBenefit: "IDEAL FOR DIY & TRADE",
-  campaignType: "Back In Stock",
-  campaignMessage: "BACK IN STOCK",
-  sellingPrice: "2499",
+  productName: "",
+  sku: "",
+  primarySpecification: "",
+  secondarySpecification: "",
+  feature01: "",
+  feature02: "",
+  keyBenefit: "",
+  campaignType: "Standard Product",
+  campaignMessage: "BUILT FOR THE JOB",
+  sellingPrice: "",
   disclaimer: "WHILE STOCKS LAST",
   moodId: "thumbs_up",
   originalImageUrl: "",
@@ -106,4 +108,4 @@ export const advertSchema = z.object({
       message: "Background removal must complete before saving or exporting",
     });
   }
-}).transform(data=>({...data,wasPrice:data.pricingMethod==="SALE"?data.wasPrice:null,nowPrice:data.pricingMethod==="SALE"?data.sellingPrice:null}));
+}).transform(data=>({...dedupeSpecFields(data),wasPrice:data.pricingMethod==="SALE"?data.wasPrice:null,nowPrice:data.pricingMethod==="SALE"?data.sellingPrice:null}));

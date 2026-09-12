@@ -1,3 +1,4 @@
+import { validateSourceImage } from "./server-image";
 import { detectPowerInclusion } from "./power-inclusion";
 import { OpenAIClient } from "./ai/ai-client";
 import { heuristicPageAnalysis, pdfPageAnalysisSchema, type PdfPageAnalysis } from "./pdf-import";
@@ -25,6 +26,7 @@ function fieldJsonSchema() {
 const FIELD_NAMES = ["brand", "productName", "category", "model", "sku", "warranty", "nettPrice", "promotionalPrice", "wasPrice"] as const;
 
 export async function analyzePdfPage(input: { pageNumber: number; embeddedText: string; pagePreviewDataUrl: string }, client = new OpenAIClient()): Promise<{ analysis: PdfPageAnalysis; ocrText: string; method: "AI_VISION" | "HEURISTIC"; usage?: { inputTokens?: number; outputTokens?: number }; error?: string }> {
+  await validateSourceImage(input.pagePreviewDataUrl);
   if(input.embeddedText.trim().length >= 40 && /\bProduct(?: name)?\s*[:\-]/i.test(input.embeddedText)){return {analysis:heuristicPageAnalysis(input.embeddedText,"",input.pageNumber),ocrText:"",method:"HEURISTIC"};}
   if(process.env.AI_MODE !== "live")return {analysis:heuristicPageAnalysis(input.embeddedText,"",input.pageNumber),ocrText:"",method:"HEURISTIC"};
   try {

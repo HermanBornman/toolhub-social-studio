@@ -1,9 +1,10 @@
+import { withAuthorization } from "@/lib/route-authorization";
 import { NextResponse } from "next/server";
 import { pdfImportSchema } from "@/lib/pdf-import";
 import { prisma } from "@/lib/prisma";
 import { ensureCurrentUser } from "@/lib/server-user";
 
-export async function GET() {
+async function GETHandler() {
   const user = await ensureCurrentUser();
   const imports = await prisma.pdfImport.findMany({
     where: user.role === "STAFF" ? { createdByUserId: user.id } : undefined,
@@ -13,7 +14,7 @@ export async function GET() {
   return NextResponse.json(imports);
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const user = await ensureCurrentUser();
   const parsed = pdfImportSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "PDF metadata is invalid", issues: parsed.error.flatten().fieldErrors }, { status: 400 });
@@ -30,3 +31,7 @@ export async function POST(request: Request) {
   });
   return NextResponse.json(created, { status: 201 });
 }
+
+export const GET = withAuthorization("READ", GETHandler);
+
+export const POST = withAuthorization("CREATE", POSTHandler);

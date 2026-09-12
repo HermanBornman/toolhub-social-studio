@@ -1,3 +1,4 @@
+import { dedupeSpecFields } from "@/lib/specifications";
 import { powerStatement, readPower } from "@/lib/power-inclusion";
 import type { RefObject } from "react";
 import { QRCodeSVG } from "qrcode.react";
@@ -8,6 +9,7 @@ import { selectProductImage } from "@/lib/product-image";
 import { ApprovedImage } from "./ApprovedImage";
 
 export function AdvertPreview({ data, canvasRef }: { data: AdvertFormData; canvasRef?: RefObject<HTMLDivElement | null> }) {
+  data = dedupeSpecFields(data);
   const mood = MASCOT_MOODS.find((item) => item.id === data.moodId) ?? MASCOT_MOODS[0];
   const qrValue = /^https?:\/\//.test(data.qrUrl) ? data.qrUrl : "https://www.toolhub.co.za";
   const productImage = selectProductImage(data);
@@ -32,7 +34,7 @@ export function AdvertPreview({ data, canvasRef }: { data: AdvertFormData; canva
           <div className="spec-copy">
             <span>MODEL / SKU</span><small>{data.sku || "MODEL / SKU"}</small>
             <strong>{data.primarySpecification || "PRIMARY SPECIFICATION"}</strong>
-            <p>{data.secondarySpecification || "SECONDARY SPECIFICATION"}</p>
+            {data.secondarySpecification && <p>{data.secondarySpecification}</p>}
           </div>
           <div className="spec-features">
             <div className="feature-row">{data.feature01&&<b>{data.feature01}</b>}{data.feature02&&<b>{data.feature02}</b>}</div>

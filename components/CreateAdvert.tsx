@@ -1,5 +1,7 @@
 "use client";
 
+import { dedupeSpecFields } from "@/lib/specifications";
+
 import { PowerInclusionReview } from "./PowerInclusionReview";
 import { readPower } from "@/lib/power-inclusion";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
@@ -8,7 +10,7 @@ import { Download, ImagePlus, Loader2, LockKeyhole, Save, Search, Send, ShieldCh
 import { toPng } from "html-to-image";
 import { AdvertPreview } from "./AdvertPreview";
 import { MoodSelector } from "./MoodSelector";
-import { advertSchema, CAMPAIGN_SUGGESTIONS, CAMPAIGN_TYPES, TEST_ADVERT, type AdvertFormData } from "@/lib/advert";
+import { advertSchema, CAMPAIGN_SUGGESTIONS, CAMPAIGN_TYPES, EMPTY_ADVERT, type AdvertFormData } from "@/lib/advert";
 import { formatZar } from "@/lib/format-price";
 import { validateProductImageUpload } from "@/lib/product-image";
 
@@ -21,7 +23,7 @@ function Field({ label, error, hint, children }: { label: string; error?: string
 type SelectableProduct = { id:string; sku:string; barcode?:string|null; brand:string; productName:string; category:string; primarySpecification:string; secondarySpecification?:string|null; feature01?:string|null; feature02?:string|null; keyBenefit?:string|null; currentPrice:number; websiteUrl?:string|null; originalImageUrl:string; processedImageUrl?:string|null; backgroundRemovalStatus:AdvertFormData["backgroundRemovalStatus"] };
 
 export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", approvalComment }: { initialData?: AdvertFormData; initialId?: string; initialStatus?: string; approvalComment?: string | null }) {
-  const [data, setData] = useState<AdvertFormData>(initialData || TEST_ADVERT);
+  const [data, setData] = useState<AdvertFormData>(initialData || EMPTY_ADVERT);
   const [draftId,setDraftId]=useState(initialId||""); const [status,setStatus]=useState(initialStatus);
   const [products,setProducts]=useState<SelectableProduct[]>([]); const [productQuery,setProductQuery]=useState("");
   const [errors, setErrors] = useState<Errors>({});
@@ -31,11 +33,12 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
   const [exportImage,setExportImage] = useState("");
   const [imageStatusText, setImageStatusText] = useState("Upload product image");
   const [canUseOriginal, setCanUseOriginal] = useState(false);
+  const savedRevision=useRef("");
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ fetch(`/api/products?q=${encodeURIComponent(productQuery)}`).then(r=>r.json()).then(value=>setProducts(Array.isArray(value)?value:[])); },[productQuery]);
 
-  const selectProduct=(product:SelectableProduct)=>{ setData(current=>({...current,powerInclusionJson:"{}",disclaimer:"WHILE STOCKS LAST",productId:product.id,productName:product.productName,sku:product.sku,primarySpecification:product.primarySpecification,secondarySpecification:product.secondarySpecification||"",feature01:product.feature01||"",feature02:product.feature02||"",keyBenefit:product.keyBenefit||"",sellingPrice:String(product.currentPrice),qrUrl:product.websiteUrl||"https://www.toolhub.co.za",originalImageUrl:product.originalImageUrl,processedImageUrl:product.processedImageUrl||"",backgroundRemovalStatus:product.backgroundRemovalStatus,useOriginalImage:false})); setImageStatusText(product.backgroundRemovalStatus==="COMPLETE"?"Saved transparent product image ready":"Product needs a transparent image"); setNotice(null); };
+  const selectProduct=(product:SelectableProduct)=>{ setData(current=>({...current,pricingMethod:"MANUAL",wasPrice:null,powerInclusionJson:"{}",disclaimer:"WHILE STOCKS LAST",productId:product.id,productName:product.productName,sku:product.sku,primarySpecification:product.primarySpecification,secondarySpecification:product.secondarySpecification||"",feature01:product.feature01||"",feature02:product.feature02||"",keyBenefit:product.keyBenefit||"",sellingPrice:String(product.currentPrice),qrUrl:product.websiteUrl||"https://www.toolhub.co.za",originalImageUrl:product.originalImageUrl,processedImageUrl:product.processedImageUrl||"",backgroundRemovalStatus:product.backgroundRemovalStatus,useOriginalImage:false})); setImageStatusText(product.backgroundRemovalStatus==="COMPLETE"?"Saved transparent product image ready":"Product needs a transparent image"); setNotice(null); };
 
   const setField = <K extends keyof AdvertFormData>(field: K, value: AdvertFormData[K]) => {
     setData((current) => ({ ...current, [field]: value }));
@@ -115,6 +118,8 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
       const response = await fetch(draftId?`/api/adverts/${draftId}`:"/api/adverts", { method: draftId?"PUT":"POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to save draft");
+      savedRevision.current=result.updatedAt;
+      setData(current=>dedupeSpecFields(current));
       setDraftId(result.id); setNotice({ type: "success", text: `Draft saved · ${result.id.slice(0, 8).toUpperCase()}` }); return result.id as string;
     } catch (error) {
       setNotice({ type: "error", text: error instanceof Error ? error.message : "Unable to save draft" });
@@ -122,7 +127,19 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
     } finally { setSaving(false); }
   };
   const saveDraft=()=>{void persistDraft();};
-  const submitForApproval=async()=>{const id=await persistDraft();if(!id)return;setSaving(true);const response=await fetch(`/api/adverts/${id}/submit`,{method:"POST"});const result=await response.json();setSaving(false);if(!response.ok){setNotice({type:"error",text:result.error||"Unable to submit"});return;}setStatus(result.status);setNotice({type:"success",text:"Advert submitted for manager approval."});};
+  const submitForApproval=async()=>{
+    const id=await persistDraft();if(!id||!canvasRef.current)return;
+    setSaving(true);
+    try {
+      await document.fonts.ready;
+      const bounds=canvasRef.current.getBoundingClientRect();
+      const artworkDataUrl=await toPng(canvasRef.current,{width:bounds.width,height:bounds.height,canvasWidth:1080,canvasHeight:1350,pixelRatio:1,cacheBust:true});
+      const response=await fetch(`/api/adverts/${id}/submit`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({artworkDataUrl,expectedUpdatedAt:savedRevision.current})});
+      const result=await response.json();if(!response.ok)throw new Error(result.error||"Unable to submit");
+      setStatus(result.status);setNotice({type:"success",text:"Advert and final artwork submitted for manager approval."});
+    } catch(error) {setNotice({type:"error",text:error instanceof Error?error.message:"Unable to submit"});}
+    finally {setSaving(false);}
+  };
 
   const exportPng = async () => {
     if (!validate() || !canvasRef.current) return;

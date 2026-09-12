@@ -1,3 +1,4 @@
+import { withAuthorization } from "@/lib/route-authorization";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +11,7 @@ const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("save"), advertisementId: z.string(), masterCaption: z.string().min(1).max(5000), facebookCaption: z.string().max(5000).optional(), instagramCaption: z.string().max(5000).optional(), useSameCaption: z.boolean(), tone: z.string(), source: z.enum(["MANUAL", "AI", "TEMPLATE"]), state: z.enum(["DRAFT", "AI_GENERATED", "REVIEWED", "READY"]), warnings: z.array(z.string()).default([]) }),
 ]);
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   try {
     const user = await ensureCurrentUser();
     if (!["MARKETING", "MANAGER", "ADMIN"].includes(user.role)) throw new Error("FORBIDDEN");
@@ -37,3 +38,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: out.error }, { status: out.status });
   }
 }
+
+export const POST = withAuthorization("MARKETING", POSTHandler);

@@ -1,3 +1,6 @@
+import { correctionAudit } from "@/lib/correction-audit";
+import { validateProductImages } from "@/lib/server-image";
+import { withAuthorization } from "@/lib/route-authorization";
 import { hasTransparentPng } from "@/lib/png-transparency";
 import { emptyPower, reviewPower } from "@/lib/power-inclusion";
 import { NextResponse } from "next/server";
@@ -14,7 +17,7 @@ const requestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("createDraft") }),
 ]);
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string; pageNumber: string }> }) {
+async function POSTHandler(request: Request, { params }: { params: Promise<{ id: string; pageNumber: string }> }) {
   const user = await ensureCurrentUser();
   const { id, pageNumber: pageParam } = await params;
   const pageNumber = Number(pageParam);
@@ -36,6 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const selectedImageDataUrl = input.data.selectedImageDataUrl;
     const processedImageDataUrl = input.data.processedImageDataUrl;
     const decision = input.data.multiProductDecision || null;
+    await validateProductImages({originalImageUrl:selectedImageDataUrl,processedImageUrl:processedImageDataUrl,backgroundRemovalStatus:input.data.action === "approve" ? "COMPLETE" : input.data.backgroundRemovalStatus},input.data.action === "approve");
 
     if (input.data.action === "approve") {
       const issues = coreReviewIssues(analysis, { selectedImageReady: hasTransparentPng(processedImageDataUrl), multiProductDecision: decision, pricingValid: true });
@@ -45,8 +49,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const status = input.data.action === "approve" ? "REVIEW_APPROVED" : "REVIEW_REQUIRED";
     const updated = await prisma.$transaction(async (tx) => {
-      const saved = await tx.pdfImportPage.update({ where: { id: page.id }, data: { status, analysisJson: JSON.stringify(analysis), selectedImageDataUrl, processedImageDataUrl, backgroundRemovalStatus: processedImageDataUrl ? "COMPLETE" : input.data.action === "save" ? input.data.backgroundRemovalStatus : "COMPLETE", multiProductDecision: decision, userCorrectionsJson: JSON.stringify({ savedAt: new Date().toISOString(), fields: analysis }), extractedPricingJson: JSON.stringify(source), pricingJson: JSON.stringify(pricing), priceConfirmedByUserId: confirmedBy, priceConfirmedAt: confirmedBy ? new Date() : null, pricingTraceJson: JSON.stringify({ ...pricingTrace, confirmedByUserId: confirmedBy }), reviewApprovedAt: input.data.action === "approve" ? new Date() : null, reviewApprovedByUserId: input.data.action === "approve" ? user.id : null } });
-      await tx.auditLog.create({ data: { action: input.data.action === "approve" ? "PDF_REVIEW_APPROVE" : "PDF_REVIEW_CORRECTION", entityType: "PdfImportPage", entityId: page.id, userId: user.id, userName: user.name, previousStatus: page.status, newStatus: status, metadata: JSON.stringify({ pdfImportId: id, pageNumber, multiProductDecision: decision, powerBefore: previousPower, powerAfter: powerInclusion, pricingBefore: JSON.parse(page.pricingTraceJson), pricingAfter: pricingTrace, confirmedByUserId: confirmedBy }) } });
+      const saved = await tx.pdfImportPage.update({ where: { id: page.id, updatedAt:page.updatedAt }, data: { status, analysisJson: JSON.stringify(analysis), selectedImageDataUrl, processedImageDataUrl, backgroundRemovalStatus: processedImageDataUrl ? "COMPLETE" : input.data.action === "save" ? input.data.backgroundRemovalStatus : "COMPLETE", multiProductDecision: decision, userCorrectionsJson: JSON.stringify({ savedAt: new Date().toISOString(), fields: analysis }), extractedPricingJson: JSON.stringify(source), pricingJson: JSON.stringify(pricing), priceConfirmedByUserId: confirmedBy, priceConfirmedAt: confirmedBy ? new Date() : null, pricingTraceJson: JSON.stringify({ ...pricingTrace, confirmedByUserId: confirmedBy }), reviewApprovedAt: input.data.action === "approve" ? new Date() : null, reviewApprovedByUserId: input.data.action === "approve" ? user.id : null } });
+      await tx.auditLog.create({ data: { action: input.data.action === "approve" ? "PDF_REVIEW_APPROVE" : "PDF_REVIEW_CORRECTION", entityType: "PdfImportPage", entityId: page.id, userId: user.id, userName: user.name, previousStatus: page.status, newStatus: status, metadata: JSON.stringify({ ...correctionAudit({analysis:JSON.parse(page.analysisJson),pricing:JSON.parse(page.pricingJson),trace:JSON.parse(page.pricingTraceJson),selectedImageDataUrl:page.selectedImageDataUrl,processedImageDataUrl:page.processedImageDataUrl},{analysis,pricing,trace:pricingTrace,selectedImageDataUrl,processedImageDataUrl},{pdfImportId:id,pageId:page.id,pageNumber,advertisementId:page.advertisementId,userId:user.id,extractedPricing:source,finalConfirmation:input.data.action==="approve"}), powerBefore:previousPower,powerAfter:powerInclusion,pricingBefore:JSON.parse(page.pricingTraceJson),pricingAfter:pricingTrace,confirmedByUserId:confirmedBy, imageHistory: page.selectedImageDataUrl!==selectedImageDataUrl || page.processedImageDataUrl!==processedImageDataUrl ? {before:{source:page.selectedImageDataUrl,processed:page.processedImageDataUrl},after:{source:selectedImageDataUrl,processed:processedImageDataUrl}} : undefined }) } });
       return saved;
     });
     return NextResponse.json(updated);
@@ -64,7 +68,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const advertInput = {
     productName: analysis.productName.value, sku: analysis.sku.value,
     primarySpecification: analysis.technicalSpecifications[0]?.value || "", secondarySpecification: analysis.technicalSpecifications.slice(1, 3).map((item) => item.value).join(" · "),
-    feature01: analysis.technicalSpecifications[1]?.value || "", feature02: analysis.technicalSpecifications[2]?.value || "", keyBenefit: "",
+    feature01: analysis.technicalSpecifications[3]?.value || "", feature02: analysis.technicalSpecifications[4]?.value || "", keyBenefit: "",
     pricingMethod: pricing.method, wasPrice: pricing.method === "SALE" ? Math.round(resolved.wasPrice!) : null,
     campaignType: "Standard Product" as const, campaignMessage: "BUILT FOR THE JOB", sellingPrice: String(sellingPrice || ""),
     powerInclusionJson: JSON.stringify(analysis.powerInclusion ?? emptyPower()),
@@ -80,8 +84,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if(claimed.count!==1)throw new Error("Page draft creation already in progress");
     const created = await tx.advertisement.create({ data: { ...validated.data, pricingAuditJson: JSON.stringify({ ...resolved, confirmedByUserId: page.priceConfirmedByUserId, confirmedAt: page.priceConfirmedAt }), productId: null, productImage: page.processedImageDataUrl, sellingPrice: Math.round(validated.data.sellingPrice), templateVersion: TEMPLATE_VERSION, templateId: template?.id, status: "DRAFT", createdByUserId: user.id, lastEditedByUserId: user.id } });
     await tx.pdfImportPage.update({ where: { id: page.id }, data: { status: "DRAFT_CREATED", advertisementId: created.id } });
-    await tx.auditLog.create({ data: { action: "PDF_DRAFT_CREATE", entityType: "Advertisement", entityId: created.id, advertisementId: created.id, userId: user.id, userName: user.name, newStatus: "DRAFT", metadata: JSON.stringify({ pdfImportId: id, pageNumber, sourcePageId: page.id, pricingTrace: JSON.parse(page.pricingTraceJson) }) } });
+    await tx.auditLog.create({ data: { action: "PDF_DRAFT_CREATE", entityType: "Advertisement", entityId: created.id, advertisementId: created.id, userId: user.id, userName: user.name, newStatus: "DRAFT", metadata: JSON.stringify({ pdfImportId: id, pageNumber, sourcePageId: page.id, pricingTrace: JSON.parse(page.pricingTraceJson), extractedPricing: source, confirmedAnalysis: analysis, advertSnapshot: correctionAudit(null,created) }) } });
     return created;
   });
   return NextResponse.json({ id: advert.id, status: advert.status }, { status: 201 });
 }
+
+export const POST = withAuthorization("CREATE", POSTHandler);

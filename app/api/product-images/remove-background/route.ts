@@ -1,3 +1,4 @@
+import { withAuthorization } from "@/lib/route-authorization";
 import { NextResponse } from "next/server";
 import { removeProductBackground } from "@/lib/remove-background";
 import { canUseOriginalImage } from "@/lib/user-role";
@@ -6,7 +7,7 @@ import { validateProductImageUpload } from "@/lib/product-image";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const allowOriginalFallback = canUseOriginalImage();
 
   try {
@@ -36,3 +37,5 @@ export async function POST(request: Request) {
     }, { status: 502 });
   }
 }
+
+export const POST = withAuthorization("CREATE", POSTHandler);

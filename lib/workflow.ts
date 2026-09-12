@@ -1,3 +1,4 @@
+import { authorize } from "./authorization";
 import { z } from "zod";
 import { canApproveAdvert, canEditAdvert, canReviewAdvert, type CurrentUser } from "./user-role";
 
@@ -38,6 +39,7 @@ export function assertCanSubmit(advert: { status: string; createdByUserId: strin
 }
 
 export function assertCanReview(advert: { status: string; createdByUserId: string; submittedByUserId?: string | null }, action: "APPROVE" | "REQUEST_CHANGES" | "REJECT", user: CurrentUser) {
+  authorize("REVIEW", user);
   if (!canReviewAdvert(user.role)) throw new Error("FORBIDDEN");
   if (advert.status !== "AWAITING_APPROVAL") throw new Error("INVALID_TRANSITION");
   if (action === "APPROVE" && !canApproveAdvert(advert, user)) throw new Error("SELF_APPROVAL");

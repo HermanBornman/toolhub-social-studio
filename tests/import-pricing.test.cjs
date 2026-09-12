@@ -1,8 +1,9 @@
+const { TEST_ADVERT } = require("./advert-fixture.cjs");
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { resolvePricing, pricingInputSchema, extractedPricing, priceNumber } = require('../.test-dist/lib/import-pricing.js');
 const { heuristicPageAnalysis, coreReviewIssues } = require('../.test-dist/lib/pdf-import.js');
-const { advertSchema, TEST_ADVERT } = require('../.test-dist/lib/advert.js');
+const { advertSchema } = require('../.test-dist/lib/advert.js');
 const field=(value,confidence='HIGH')=>({value,confidence,source:'OCR',sourcePage:1});
 const source={nettPrice:field('R1 000'),sellingPrice:field('Not found','LOW')};
 const input=p=>pricingInputSchema.parse(p);

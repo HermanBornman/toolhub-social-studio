@@ -22,7 +22,8 @@ async function main() {
     update: { active: true },
     create: { version: "TOOLHUB_SOCIAL_MASTER_V1", name: "Toolhub Social Master V1", description: "Locked 4:5 Toolhub product advert template" },
   });
-  for (const [id, name, role] of users) {
+  const seedDemo = process.env.TOOLHUB_SEED_DEMO === "true" && process.env.NODE_ENV !== "production";
+  for (const [id, name, role] of seedDemo ? users : []) {
     await prisma.user.upsert({ where: { id }, update: { name, role }, create: { id, name, role, email: `${id}@toolhub.local` } });
   }
   for (const [id, displayName, assetPath] of moods) {
@@ -30,7 +31,7 @@ async function main() {
     await prisma.mascotMood.upsert({ where: { id }, update: data, create: data });
   }
   await prisma.planningRule.upsert({ where: { id: "default" }, update: {}, create: { id: "default", timezone: "Africa/Johannesburg", facebookPostsPerWeek: 5, instagramPostsPerWeek: 5, preferredDays: "[1,2,3,4,5]", preferredTime: "09:00", sameSkuCooldownDays: 14, sameAdvertCooldownDays: 14, maxSpecialsPerWeek: 2, maxBackInStockPerWeek: 2, categoryBalancing: true, campaignBalancing: true, autoSchedulingMode: "manual" } });
-  await prisma.product.upsert({
+  if (seedDemo) await prisma.product.upsert({
     where: { sku: "TEST-CIDLI20" },
     update: {},
     create: {

@@ -1,3 +1,4 @@
+import { uniqueExtractedFields, specificationKey } from "./specifications";
 import { z } from "zod";
 import { detectPowerInclusion, powerInclusionSchema, type PowerInclusion } from "./power-inclusion";
 
@@ -57,8 +58,12 @@ export function excludeSupplierBadges(analysis: PdfPageAnalysis): PdfPageAnalysi
     const value = clean(item.value);
     return value ? { ...item, value } : { value: "Not found", confidence: "LOW", source: "NOT_FOUND", sourcePage: item.sourcePage };
   };
+  const technicalSpecifications = uniqueExtractedFields(analysis.technicalSpecifications.map(item => ({ ...item, value: clean(item.value) })).filter(item => item.value));
+  const includedItems = uniqueExtractedFields(analysis.includedItems).filter(item=>!technicalSpecifications.some(spec=>spec.sourcePage===item.sourcePage && specificationKey(spec.value)===specificationKey(item.value)));
   return { ...analysis, productName: field(analysis.productName), model: field(analysis.model),
-    technicalSpecifications: analysis.technicalSpecifications.map(item => ({ ...item, value: clean(item.value) })).filter(item => item.value),
+    technicalSpecifications,
+    includedItems,
+    excludedItems: uniqueExtractedFields(analysis.excludedItems),
   };
 }
 
@@ -145,9 +150,13 @@ export function heuristicPageAnalysis(rawText: string, ocrText: string, page: nu
     /\bMetal\s*[:\-]?\s*(\d+\s*mm(?:\s*\([^)]*\))?)/gi,
     /\b(\d+(?:\.\d+)?\s*(?:V|W|KW|AH|MAH|MM|CM|KG|L))\b/gi,
   ];
-  for (const pattern of patterns) {
+  const labelledSpans: Array<[number,number]> = [];
+  for (const [patternIndex, pattern] of patterns.entries()) {
     for (const match of combined.matchAll(pattern)) {
-      const value = match[0].includes(":") ? match[0] : match[1];
+      const start=match.index!;
+      if(patternIndex===2 && labelledSpans.some(([a,b])=>start>=a && start+match[0].length<=b))continue;
+      if(patternIndex<2)labelledSpans.push([start,start+match[0].length]);
+      const value = patternIndex<2 ? match[0] : match[1];
       if (value && !specs.some((item) => item.value.toLowerCase() === normalizeTechnicalText(value).toLowerCase())) specs.push(found(value, page, "MEDIUM", source));
     }
   }

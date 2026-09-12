@@ -7,7 +7,13 @@
     "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
   },
   "include": [
     "lib/format-price.ts",
@@ -29,6 +35,11 @@
     "lib/png-transparency.ts",
     "lib/pdf-analysis.ts",
     "lib/import-pricing.ts",
-    "lib/power-inclusion.ts"
+    "lib/power-inclusion.ts",
+    "lib/server-image.ts",
+    "lib/final-artwork.ts",
+    "lib/authorization.ts",
+    "lib/correction-audit.ts",
+    "app/api/**/*.ts"
   ]
 }
