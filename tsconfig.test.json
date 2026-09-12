@@ -9,5 +9,26 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "include": ["lib/format-price.ts", "lib/moods.ts", "lib/product-image.ts", "lib/remove-background.ts", "lib/user-role.ts", "lib/advert.ts", "lib/product.ts", "lib/workflow.ts", "lib/social-publishing.ts", "lib/integrations/buffer/*.ts", "lib/ai/*.ts", "lib/planner.ts", "lib/plan-workflow.ts", "lib/reports.ts"]
+  "include": [
+    "lib/format-price.ts",
+    "lib/moods.ts",
+    "lib/product-image.ts",
+    "lib/remove-background.ts",
+    "lib/user-role.ts",
+    "lib/advert.ts",
+    "lib/product.ts",
+    "lib/workflow.ts",
+    "lib/social-publishing.ts",
+    "lib/integrations/buffer/*.ts",
+    "lib/ai/*.ts",
+    "lib/planner.ts",
+    "lib/plan-workflow.ts",
+    "lib/reports.ts",
+    "lib/pdf-import.ts",
+    "lib/pdf-review-state.ts",
+    "lib/png-transparency.ts",
+    "lib/pdf-analysis.ts",
+    "lib/import-pricing.ts",
+    "lib/power-inclusion.ts"
+  ]
 }

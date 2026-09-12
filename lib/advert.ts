@@ -1,3 +1,4 @@
+import { powerInclusionSchema } from "./power-inclusion";
 import { z } from "zod";
 import type { Mood } from "./moods";
 import { BACKGROUND_REMOVAL_STATUSES, type BackgroundRemovalStatus } from "./product-image";
@@ -39,6 +40,9 @@ export type AdvertFormData = {
   keyBenefit: string;
   campaignType: (typeof CAMPAIGN_TYPES)[number];
   campaignMessage: string;
+  powerInclusionJson?: string;
+  pricingMethod?: "PDF" | "SALE" | "MANUAL";
+  wasPrice?: number | null;
   sellingPrice: string;
   disclaimer: string;
   moodId: Mood;
@@ -81,6 +85,9 @@ export const advertSchema = z.object({
   keyBenefit: z.string().trim().max(42),
   campaignType: z.enum(CAMPAIGN_TYPES),
   campaignMessage: z.string().trim().min(1).max(32, "Keep Campaign Message under 32 characters"),
+  powerInclusionJson: z.string().max(10000).default("{}").refine(value=>{try{return powerInclusionSchema.safeParse(JSON.parse(value)).success;}catch{return false;}}, "Invalid power / included items"),
+  pricingMethod: z.enum(["PDF", "SALE", "MANUAL"]).default("PDF"),
+  wasPrice: z.coerce.number().int().positive().nullable().optional(),
   sellingPrice: z.coerce.number().int().positive("Selling Price must be greater than zero"),
   disclaimer: z.string().trim().max(50),
   moodId: z.enum(["happy", "excited", "wow", "wink", "thumbs_up", "smile"]),
@@ -90,6 +97,7 @@ export const advertSchema = z.object({
   useOriginalImage: z.boolean(),
   qrUrl: z.string().url("Enter a valid QR URL"),
 }).superRefine((data, context) => {
+  if(data.pricingMethod === "SALE" && !data.wasPrice) context.addIssue({code:z.ZodIssueCode.custom,path:["wasPrice"],message:"WAS price is required for sale pricing"});
   const transparentReady = data.backgroundRemovalStatus === "COMPLETE" && data.processedImageUrl.startsWith("data:image/png;base64,");
   if (!transparentReady && !data.useOriginalImage) {
     context.addIssue({
@@ -98,4 +106,4 @@ export const advertSchema = z.object({
       message: "Background removal must complete before saving or exporting",
     });
   }
-});
+}).transform(data=>({...data,wasPrice:data.pricingMethod==="SALE"?data.wasPrice:null,nowPrice:data.pricingMethod==="SALE"?data.sellingPrice:null}));

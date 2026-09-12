@@ -1,5 +1,7 @@
 "use client";
 
+import { PowerInclusionReview } from "./PowerInclusionReview";
+import { readPower } from "@/lib/power-inclusion";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Download, ImagePlus, Loader2, LockKeyhole, Save, Search, Send, ShieldCheck, UploadCloud } from "lucide-react";
@@ -26,13 +28,14 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportImage,setExportImage] = useState("");
   const [imageStatusText, setImageStatusText] = useState("Upload product image");
   const [canUseOriginal, setCanUseOriginal] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ fetch(`/api/products?q=${encodeURIComponent(productQuery)}`).then(r=>r.json()).then(value=>setProducts(Array.isArray(value)?value:[])); },[productQuery]);
 
-  const selectProduct=(product:SelectableProduct)=>{ setData(current=>({...current,productId:product.id,productName:product.productName,sku:product.sku,primarySpecification:product.primarySpecification,secondarySpecification:product.secondarySpecification||"",feature01:product.feature01||"",feature02:product.feature02||"",keyBenefit:product.keyBenefit||"",sellingPrice:String(product.currentPrice),qrUrl:product.websiteUrl||"https://www.toolhub.co.za",originalImageUrl:product.originalImageUrl,processedImageUrl:product.processedImageUrl||"",backgroundRemovalStatus:product.backgroundRemovalStatus,useOriginalImage:false})); setImageStatusText(product.backgroundRemovalStatus==="COMPLETE"?"Saved transparent product image ready":"Product needs a transparent image"); setNotice(null); };
+  const selectProduct=(product:SelectableProduct)=>{ setData(current=>({...current,powerInclusionJson:"{}",disclaimer:"WHILE STOCKS LAST",productId:product.id,productName:product.productName,sku:product.sku,primarySpecification:product.primarySpecification,secondarySpecification:product.secondarySpecification||"",feature01:product.feature01||"",feature02:product.feature02||"",keyBenefit:product.keyBenefit||"",sellingPrice:String(product.currentPrice),qrUrl:product.websiteUrl||"https://www.toolhub.co.za",originalImageUrl:product.originalImageUrl,processedImageUrl:product.processedImageUrl||"",backgroundRemovalStatus:product.backgroundRemovalStatus,useOriginalImage:false})); setImageStatusText(product.backgroundRemovalStatus==="COMPLETE"?"Saved transparent product image ready":"Product needs a transparent image"); setNotice(null); };
 
   const setField = <K extends keyof AdvertFormData>(field: K, value: AdvertFormData[K]) => {
     setData((current) => ({ ...current, [field]: value }));
@@ -139,6 +142,7 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
       image.src = dataUrl;
       await image.decode();
       if (image.naturalWidth !== 1080 || image.naturalHeight !== 1350) throw new Error(`Export was ${image.naturalWidth} × ${image.naturalHeight}, expected 1080 × 1350`);
+      setExportImage(dataUrl);
       const link = document.createElement("a");
       link.download = `${data.sku || "toolhub-advert"}.png`;
       link.href = dataUrl;
@@ -188,7 +192,9 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
         <div className="form-section">
           <div className="form-section-heading"><span>PRICE & LINK</span><small>What should customers act on?</small></div>
           <div className="field-grid two">
-            <Field label="Selling Price *" error={errors.sellingPrice} hint={`Preview: ${formatZar(data.sellingPrice)}`}><div className="price-input"><span>R</span><input inputMode="numeric" value={data.sellingPrice} onChange={(e) => setField("sellingPrice", e.target.value.replace(/\D/g, ""))} /></div></Field>
+            {data.pricingMethod === "SALE" && <Field label="WAS price *" error={errors.wasPrice}><div className="price-input"><span>R</span><input inputMode="numeric" value={data.wasPrice ?? ""} onChange={e=>setField("wasPrice",e.target.value ? Number(e.target.value.replace(/\D/g,"")) : null)}/></div></Field>}
+            <Field label={data.pricingMethod === "SALE" ? "NOW price *" : "Selling Price *"} error={errors.sellingPrice} hint={`Preview: ${formatZar(data.sellingPrice)}`}><div className="price-input"><span>R</span><input inputMode="numeric" value={data.sellingPrice} onChange={(e) => setField("sellingPrice", e.target.value.replace(/\D/g, ""))} /></div></Field>
+            <PowerInclusionReview value={readPower(data.powerInclusionJson)} onChange={power=>setField("powerInclusionJson",JSON.stringify(power))}/>
             <Field label="Disclaimer" error={errors.disclaimer}><input value={data.disclaimer} maxLength={50} onChange={(e) => setField("disclaimer", e.target.value.toUpperCase())} /></Field>
           </div>
           <Field label="QR URL *" error={errors.qrUrl} hint="A real scannable QR code is generated in the preview."><input type="url" value={data.qrUrl} onChange={(e) => setField("qrUrl", e.target.value)} /></Field>
@@ -215,6 +221,7 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
           <button className="secondary-button" type="button" onClick={saveDraft} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING" || status==="AWAITING_APPROVAL" || status==="APPROVED"}>{saving ? <Loader2 className="spin" size={18} /> : <Save size={18} />} Save Draft</button>
           {(status==="DRAFT"||status==="CHANGES_REQUESTED")&&<button className="secondary-button submit-button" type="button" onClick={submitForApproval} disabled={saving||exporting||data.backgroundRemovalStatus!=="COMPLETE"}><Send size={18}/>{status==="CHANGES_REQUESTED"?"Resubmit for Approval":"Submit for Approval"}</button>}
           {status==="APPROVED"&&draftId&&<Link className="primary-button" href={`/adverts/${draftId}/publish`}>Schedule / Publish</Link>}
+          {exportImage&&<a className="secondary-button" href={exportImage} download={`${data.sku||"toolhub-advert"}.png`}>Download exported PNG<img src={exportImage} alt="Exported 1080 by 1350 advert" style={{width:108,height:135,objectFit:"contain"}}/></a>}
           <button className="primary-button" type="button" onClick={exportPng} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING"}>{exporting ? <Loader2 className="spin" size={18} /> : <Download size={18} />} Export PNG</button>
         </div>
       </section>

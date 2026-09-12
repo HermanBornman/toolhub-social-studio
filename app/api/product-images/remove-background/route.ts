@@ -21,9 +21,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validationError, canUseOriginal: allowOriginalFallback }, { status: 400 });
     }
 
-    const apiKey = process.env.REMOVE_BG_API_KEY || "";
+    const apiKey = process.env.PHOTOROOM_API_KEY?.trim() || "";
     if (!apiKey) {
-      return NextResponse.json({ error: "Background removal is not configured", canUseOriginal: allowOriginalFallback }, { status: 503 });
+      return NextResponse.json({ error: "PhotoRoom background removal is not configured", canUseOriginal: allowOriginalFallback }, { status: 503 });
     }
 
     const result = await removeProductBackground(image, apiKey);
@@ -36,4 +36,3 @@ export async function POST(request: Request) {
     }, { status: 502 });
   }
 }
-

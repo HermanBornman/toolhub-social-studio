@@ -1,3 +1,4 @@
+import { emptyPower, readPower, reviewPower } from "@/lib/power-inclusion";
 import { NextResponse } from "next/server";
 import { advertSchema, TEMPLATE_VERSION } from "@/lib/advert";
 import { prisma } from "@/lib/prisma";
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
     const parsed = advertSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Advert validation failed", issues: parsed.error.flatten().fieldErrors }, { status: 400 });
     const input = parsed.data;
+    input.powerInclusionJson=JSON.stringify(reviewPower(emptyPower(),readPower(input.powerInclusionJson),user.id));
     if (input.useOriginalImage && !canUseOriginalImage(user.role)) return NextResponse.json({ error: "Only Marketing or Admin users may use the original product image" }, { status: 403 });
     const mood = await prisma.mascotMood.findUnique({ where: { id: input.moodId } });
     if (!mood?.active) return NextResponse.json({ error: "The selected mascot mood is not approved" }, { status: 400 });
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
         ...snapshot, productId: productId || null, productImage: selectProductImage(input), sellingPrice: Math.round(input.sellingPrice),
         templateVersion: TEMPLATE_VERSION, status: "DRAFT", templateId: template?.id, createdByUserId: user.id, lastEditedByUserId: user.id,
       } });
-      await tx.auditLog.create({ data: { action: "CREATE_DRAFT", entityType: "Advertisement", entityId: created.id, advertisementId: created.id, userId: user.id, userName: user.name, newStatus: "DRAFT", metadata: JSON.stringify({ templateVersion: TEMPLATE_VERSION, productId }) } });
+      await tx.auditLog.create({ data: { action: "CREATE_DRAFT", entityType: "Advertisement", entityId: created.id, advertisementId: created.id, userId: user.id, userName: user.name, newStatus: "DRAFT", metadata: JSON.stringify({ templateVersion: TEMPLATE_VERSION, productId, powerInclusion:readPower(input.powerInclusionJson) }) } });
       return created;
     });
     return NextResponse.json({ id: advert.id, status: advert.status, templateVersion: advert.templateVersion }, { status: 201 });

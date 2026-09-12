@@ -65,14 +65,45 @@ test("background removal returns a transparent PNG and sends production paramete
   const fetcher = async (url, init) => { request = { url, init }; return new Response(png, { status: 200, headers: { "content-type": "image/png", "x-credits-charged": "1" } }); };
   const result = await removeProductBackground(new File(["image"], "kit.jpg", { type: "image/jpeg" }), "secret", fetcher);
   assert.match(result.processedImageUrl, /^data:image\/png;base64,/);
-  assert.equal(request.url, "https://api.remove.bg/v1.0/removebg");
+  assert.equal(request.url, "https://sdk.photoroom.com/v1/segment");
   assert.equal(request.init.headers["X-Api-Key"], "secret");
   assert.equal(request.init.body.get("format"), "png");
   assert.equal(request.init.body.get("crop"), "true");
-  assert.equal(request.init.body.get("semitransparency"), "true");
+  assert.equal(request.init.body.get("channels"), "rgba");
+  assert.equal(request.init.body.get("size"), "full");
+  assert.equal(request.init.headers.Accept, "image/png");
+  assert.equal(request.init.body.get("image_file").name, "kit.jpg");
+  assert.equal(request.init.body.has("bg_color"), false);
+  assert.equal(request.init.body.has("type"), false);
+  assert.equal(request.init.body.has("crop_margin"), false);
+  assert.equal(request.init.body.has("semitransparency"), false);
 });
 
 test("background removal reports quota failure", async () => {
   const fetcher = async () => new Response("quota", { status: 402 });
   await assert.rejects(() => removeProductBackground(new File(["image"], "kit.webp", { type: "image/webp" }), "secret", fetcher), /quota exceeded/);
+});
+
+test("PhotoRoom failures give safe actionable errors without upstream response details", async () => {
+  for (const [status, message] of [[401, /API key/], [403, /API key/], [429, /try again/], [400, /product crop/], [422, /product crop/], [500, /service returned 500/]]) {
+    const fetcher = async () => new Response("sensitive upstream detail", { status });
+    await assert.rejects(() => removeProductBackground(new File(["image"], "kit.png", { type: "image/png" }), "secret", fetcher), error => {
+      assert.match(error.message, message);
+      assert.doesNotMatch(error.message, /sensitive|secret/);
+      return true;
+    });
+  }
+});
+
+test("missing PhotoRoom credentials do not send an image", async () => {
+  await assert.rejects(() => removeProductBackground(new File(["image"], "kit.png", { type: "image/png" }), "", async () => { assert.fail("must not call provider"); }), /not configured/);
+});
+
+test("background removal rejects non-PNG and non-alpha responses", async () => {
+  const opaque = new Uint8Array(26);
+  opaque.set([137,80,78,71,13,10,26,10]);
+  opaque[25] = 2;
+  for (const [body, message] of [["not a png", /transparent PNG/], [opaque, /alpha transparency/]]) {
+    await assert.rejects(() => removeProductBackground(new File(["image"], "kit.png", { type: "image/png" }), "secret", async () => new Response(body)), message);
+  }
 });

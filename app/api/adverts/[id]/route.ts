@@ -1,3 +1,4 @@
+import { readPower, reviewPower } from "@/lib/power-inclusion";
 import { NextResponse } from "next/server";
 import { advertSchema } from "@/lib/advert";
 import { prisma } from "@/lib/prisma";
@@ -22,9 +23,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (!parsed.success) return NextResponse.json({ error: "Advert validation failed", issues: parsed.error.flatten().fieldErrors }, { status: 400 });
   if (parsed.data.useOriginalImage && !canUseOriginalImage(user.role)) return NextResponse.json({ error: "Only Marketing or Admin users may use the original product image" }, { status: 403 });
   const { productId, ...input } = parsed.data;
+  const beforePower=readPower(current.powerInclusionJson);
+  input.powerInclusionJson=JSON.stringify(reviewPower(beforePower,readPower(input.powerInclusionJson),user.id));
   const updated = await prisma.$transaction(async (tx) => {
     const advert = await tx.advertisement.update({ where: { id }, data: { ...input, productId: productId || null, productImage: selectProductImage(parsed.data), sellingPrice: Math.round(input.sellingPrice), lastEditedByUserId: user.id } });
-    await tx.auditLog.create({ data: { action: "UPDATE_DRAFT", entityType: "Advertisement", entityId: id, advertisementId: id, userId: user.id, userName: user.name, previousStatus: current.status, newStatus: advert.status } }); return advert;
+    await tx.auditLog.create({ data: { action: "UPDATE_DRAFT", entityType: "Advertisement", entityId: id, advertisementId: id, userId: user.id, userName: user.name, previousStatus: current.status, newStatus: advert.status, metadata: JSON.stringify({powerBefore:beforePower,powerAfter:readPower(input.powerInclusionJson)}) } }); return advert;
   });
   return NextResponse.json(updated);
 }

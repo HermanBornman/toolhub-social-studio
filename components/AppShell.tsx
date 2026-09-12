@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BrainCircuit, CalendarDays, ChartNoAxesCombined, CheckCircle2, ChevronRight, LayoutDashboard, Package, PlusSquare, Settings } from "lucide-react";
+import { BrainCircuit, CalendarDays, ChartNoAxesCombined, CheckCircle2, ChevronRight, FileSearch, LayoutDashboard, Package, PlusSquare, Settings } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/create", label: "Create Advert", icon: PlusSquare },
+  { href: "/imports", label: "Import Supplier PDF", icon: FileSearch },
   { href: "/products", label: "Products", icon: Package },
   { href: "/approvals", label: "Approvals", icon: CheckCircle2 },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },

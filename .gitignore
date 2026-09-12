@@ -16,3 +16,5 @@ public/test-product-upload.png
 public/test-original-product.png
 public/test-processed-product.png
 .DS_Store
+# Local supplier documents, crops, and investigation artifacts
+tmp/

@@ -1,0 +1,20 @@
+"use client";
+import { defaultPricing, priceNumber, resolvePricing, type ExtractedPricing, type PricingInput } from "@/lib/import-pricing";
+import { formatZar } from "@/lib/format-price";
+
+export function ImportPricing({ source, value, onChange }: { source: ExtractedPricing; value?: PricingInput; onChange: (input: PricingInput) => void }) {
+  const input = value ?? defaultPricing(source);
+  const result = resolvePricing(source, input);
+  const update = (patch: Partial<PricingInput>) => onChange({ ...input, ...patch });
+  const field = (label: string, key: "wasPrice" | "nowPrice" | "manualFinalSellingPrice") => <label className="pdf-review-field"><span>{label}</span><input inputMode="decimal" placeholder="e.g. 2 499" value={input[key]} onChange={e=>update({[key]:e.target.value})}/></label>;
+  return <section className="import-pricing" aria-label="Pricing review">
+    <h3>Pricing Method</h3><p>Only the selected method controls the advert price.</p>
+    <fieldset><legend>Choose pricing method</legend>{([['PDF','Use PDF / calculated price'],['SALE','Sale price — Was / Now'],['MANUAL','Manual final selling price']] as const).map(([method,label])=><label className="pricing-choice" key={method}><input type="radio" name={`pricing-${source.nettPrice.sourcePage}`} checked={input.method===method} onChange={()=>update({method,pdfDecision:"UNCONFIRMED"})}/>{label}</label>)}</fieldset>
+    <details open><summary>Original extracted PDF prices · retained for audit</summary><dl><dt>Extracted PDF nett price</dt><dd>{source.nettPrice.value} <small>Confidence: {source.nettPrice.confidence}</small></dd><dt>Extracted PDF selling/promotional price</dt><dd>{source.sellingPrice.value} <small>Confidence: {source.sellingPrice.confidence}</small></dd></dl></details>
+    {input.method==='PDF'&&<><label className="pdf-review-field"><span>PDF price to use</span><select value={input.pdfSource} onChange={e=>update({pdfSource:e.target.value as PricingInput['pdfSource'],pdfDecision:'UNCONFIRMED'})}><option value="NETT">Calculate from nett price</option><option value="SELLING">Use PDF selling/promotional price</option></select></label><div className="pricing-buttons"><button type="button" className="secondary-button" onClick={()=>update({pdfDecision:'CONFIRMED'})}>Confirm PDF price</button><button type="button" className="secondary-button" onClick={()=>update({pdfDecision:'REJECTED'})}>Reject PDF price</button><span>{input.pdfDecision.replaceAll('_',' ')}</span></div></>}
+    {input.method==='SALE'&&<><div className="sale-price-fields">{field('WAS price','wasPrice')}{field('NOW price','nowPrice')}</div><p>NOW is the final selling price. Enter WAS explicitly; it is never invented.</p><div className="pricing-buttons">{(['wasPrice','nowPrice'] as const).map(key=><label key={key}>Populate {key==='wasPrice'?'WAS':'NOW'} from PDF<select aria-label={`Populate ${key==='wasPrice'?'WAS':'NOW'} from PDF`} value="" onChange={e=>{if(e.target.value)update({[key]:e.target.value});}}><option value="">Choose extracted value…</option>{source.wasPrice&&priceNumber(source.wasPrice.value)&&<option value={source.wasPrice.value}>WAS: {source.wasPrice.value}</option>}{priceNumber(source.nettPrice.value)&&<option value={source.nettPrice.value}>Nett: {source.nettPrice.value}</option>}{priceNumber(source.sellingPrice.value)&&<option value={source.sellingPrice.value}>Selling: {source.sellingPrice.value}</option>}</select></label>)}</div></>}
+    {input.method==='MANUAL'&&<>{field('Final Selling Price','manualFinalSellingPrice')}<p>This price overrides PDF and calculated prices. The original extraction remains unchanged.</p></>}
+    <div className="pricing-trace"><strong>{result.finalSellingPrice!==null?`Final advert price: ${formatZar(result.finalSellingPrice)}`:'Final advert price not confirmed'}</strong><span>{result.formula}</span>{result.calculatedSellingPrice!==null&&<span>{source.nettPrice.value} × 1.558 = {formatZar(result.calculatedSellingPrice)}</span>}</div>
+    {result.errors.length>0&&<ul className="pricing-errors">{result.errors.map(error=><li key={error}>{error}</li>)}</ul>}
+  </section>;
+}

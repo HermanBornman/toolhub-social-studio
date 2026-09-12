@@ -1,3 +1,4 @@
+import { powerStatement, readPower } from "@/lib/power-inclusion";
 import type { RefObject } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import type { AdvertFormData } from "@/lib/advert";
@@ -34,8 +35,8 @@ export function AdvertPreview({ data, canvasRef }: { data: AdvertFormData; canva
             <p>{data.secondarySpecification || "SECONDARY SPECIFICATION"}</p>
           </div>
           <div className="spec-features">
-            <div className="feature-row"><b>{data.feature01 || "FEATURE 01"}</b><b>{data.feature02 || "FEATURE 02"}</b></div>
-            <em>{data.keyBenefit || "KEY PRODUCT BENEFIT"}</em>
+            <div className="feature-row">{data.feature01&&<b>{data.feature01}</b>}{data.feature02&&<b>{data.feature02}</b>}</div>
+            {data.keyBenefit&&<em>{data.keyBenefit}</em>}
           </div>
         </section>
 
@@ -43,7 +44,7 @@ export function AdvertPreview({ data, canvasRef }: { data: AdvertFormData; canva
           {productImage ? <img src={productImage} alt={data.useOriginalImage ? "Original uploaded product" : "Background-removed product cut-out"} /> : <div className="product-placeholder"><span>{data.backgroundRemovalStatus === "PROCESSING" ? "REMOVING BACKGROUND…" : "PLACE PRODUCT IMAGE HERE"}</span></div>}
         </div>
 
-        <div className="price-panel"><span>SELLING PRICE</span><strong>{formatZar(data.sellingPrice)}</strong><small>{data.disclaimer || "WHILE STOCKS LAST"}</small></div>
+        <div className={`price-panel ${data.pricingMethod === "SALE" ? "sale-price-panel" : ""}`}>{data.pricingMethod === "SALE" && data.wasPrice ? <><span className="was-price">WAS {formatZar(data.wasPrice)}</span><span>NOW</span></> : <span>SELLING PRICE</span>}<strong>{formatZar(data.sellingPrice)}</strong>{powerStatement(readPower(data.powerInclusionJson))&&<small>{powerStatement(readPower(data.powerInclusionJson))}</small>}<small>{data.disclaimer || "WHILE STOCKS LAST"}</small></div>
 
         <div className="mascot-stage" style={{ transform: `translate(${mood.xPosition}%, ${mood.yPosition}%) scale(${mood.defaultScale})` }}>
           <ApprovedImage src={mood.assetPath} alt={`${mood.displayName} approved mascot`} />

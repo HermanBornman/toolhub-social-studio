@@ -2,4 +2,26 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/product";
 import { canManageProducts } from "@/lib/user-role";
-import { ensureCurrentUser } from "@/lib/server-w~wçkh‘éì¶»§q«^u-d€ ‰É•…Ñ•‘	åUÍ•É%ˆ¤II9L€‰UÍ•Èˆ€ ‰¥ˆ¤=81QMP9U10=8UAQM°(€€€=9MQI%9P€‰AÉ½‘ÕÑ}ÕÁ‘…Ñ•‘	åUÍ•É%‘}™­•äˆ=I%8-d€ ‰ÕÁ‘…Ñ•‘	åUÍ•É%ˆ¤II9L€‰UÍ•Èˆ€ ‰¥ˆ¤=81QMP9U10=8UAQM(¤ì(´´AÉ•Í•ÉÙ”•Ù•ÉäA¡…Í”€ÄÁÉ½‘ÕĞ¸A¡…Í”€Ä¡…¹¼ÁÉ¥”½±Õµ¸°Í¼±•…äÉ½İÌ(´´É••¥Ù”„Ù¥Í¥‰±”Á±…•¡½±‘•ÈÙ…±Õ”Ñ¡…ĞÍÑ…™˜…¸½ÉÉ•Ğ¥¸AÉ½‘ÕĞ‘¥Ğ¸)%9MIP%9Q<€‰¹•İ}AÉ½‘ÕĞˆ€ ‰É•…Ñ•‘Ğˆ°€‰™•…ÑÕÉ”ÀÄˆ°€‰™•…ÑÕÉ”ÀÈˆ°€‰¥ˆ°€‰­•å	•¹•™¥Ğˆ°€‰ÁÉ¥µ…ÉåMÁ•¥™¥…Ñ¥½¸ˆ°€‰Í•½¹‘…ÉåMÁ•¥™¥…Ñ¥½¸ˆ°€‰Í­Ôˆ°€‰ÕÁ‘…Ñ•‘Ğˆ°€‰ÁÉ½‘ÕÑ9…µ”ˆ°€‰ÕÉÉ•¹ÑAÉ¥”ˆ°€‰½É¥¥¹…±%µ…•UÉ°ˆ¤M1P€‰É•…Ñ•‘Ğˆ°€‰™•…ÑÕÉ”ÀÄˆ°€‰™•…ÑÕÉ”ÀÈˆ°€‰¥ˆ°€‰­•å	•¹•™¥Ğˆ°€‰ÁÉ¥µ…ÉåMÁ•¥™¥…Ñ¥½¸ˆ°€‰Í•½¹‘…ÉåMÁ•¥™¥…Ñ¥½¸ˆ°€‰Í­Ôˆ°€‰ÕÁ‘…Ñ•‘Ğˆ°€‰¹…µ”ˆ°€Ä°=1M ‰¥µ…•A…Ñ ˆ°€œœ¤I=4€‰AÉ½‘ÕĞˆì)I=@Q	1€‰AÉ½‘ÕĞˆì)1QHQ	1€‰¹•İ}AÉ½‘ÕĞˆI95Q<€‰AÉ½‘ÕĞˆì)IQU9%EU%9`€‰AÉ½‘ÕÑ}Í­Õ}­•äˆ=8€‰AÉ½‘ÕĞˆ ‰Í­Ôˆ¤ì)IQ%9`€‰AÉ½‘ÕÑ}ÁÉ½‘ÕÑ9…µ•}¥‘àˆ=8€‰AÉ½‘ÕĞˆ ‰ÁÉ½‘ÕÑ9…µ”ˆ¤ì)IQ%9`€‰AÉ½‘ÕÑ}‰…É½‘•}¥‘àˆ=8€‰AÉ½‘ÕĞˆ ‰‰…É½‘”ˆ¤ì)IQ%9`€‰AÉ½‘ÕÑ}‰É…¹‘}¥‘àˆ=8€‰AÉ½‘ÕĞˆ ‰‰É…¹ˆ¤ì)IQ%9`€‰AÉ½‘ÕÑ}…Ñ•½Éå}¥‘àˆ=8€‰AÉ½‘ÕĞˆ ‰…Ñ•½Éäˆ¤ì)IQ%9`€‰AÉ½‘ÕÑ}…Ñ¥Ù•}¥‘àˆ=8€‰AÉ½‘ÕĞˆ ‰…Ñ¥Ù”ˆ¤ì)AI5™½É•¥¹}­•åÌõ=8ì)AI5‘•™•É}™½É•¥¹}­•åÌõ=ì((´´É•…Ñ•%¹‘•à)IQ%9`€‰Õ‘¥Ñ1½}…‘Ù•ÉÑ¥Í•µ•¹Ñ%‘}É•…Ñ•‘Ñ}¥‘àˆ=8€‰Õ‘¥Ñ1½œˆ ‰…‘Ù•ÉÑ¥Í•µ•¹Ñ%ˆ°€‰É•…Ñ•‘Ğˆ¤ì(
+import { ensureCurrentUser } from "@/lib/server-user";
+
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const product = await prisma.product.findUnique({ where: { id: (await params).id } });
+  return product ? NextResponse.json(product) : NextResponse.json({ error: "Product not found" }, { status: 404 });
+}
+
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await ensureCurrentUser(); const id = (await params).id;
+  if (!canManageProducts(user.role)) return NextResponse.json({ error: "You do not have permission to edit products" }, { status: 403 });
+  const parsed = productSchema.safeParse(await request.json());
+  if (!parsed.success) return NextResponse.json({ error: "Product validation failed", issues: parsed.error.flatten().fieldErrors }, { status: 400 });
+  const duplicate = await prisma.product.findFirst({ where: { sku: parsed.data.sku, NOT: { id } } });
+  if (duplicate) return NextResponse.json({ error: "A product with this SKU already exists", existing: { id: duplicate.id } }, { status: 409 });
+  const before = await prisma.product.findUnique({ where: { id } });
+  if (!before) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+  const imageChanged = before.originalImageUrl !== parsed.data.originalImageUrl;
+  const product = await prisma.$transaction(async (tx) => {
+    const updated = await tx.product.update({ where: { id }, data: { ...parsed.data, normalPrice: parsed.data.normalPrice || null, processedImageUrl: parsed.data.processedImageUrl || null, updatedByUserId: user.id } });
+    await tx.auditLog.create({ data: { action: imageChanged ? "PRODUCT_IMAGE_REPLACE" : "PRODUCT_UPDATE", entityType: "Product", entityId: id, userId: user.id, userName: user.name, metadata: JSON.stringify({ sku: updated.sku }) } }); return updated;
+  });
+  return NextResponse.json(product);
+}

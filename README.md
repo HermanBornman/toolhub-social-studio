@@ -31,11 +31,19 @@ Seeded identities:
 
 Restart the development server after changing environment variables.
 
+## Background removal
+
+Product uploads and PDF product crops use PhotoRoom's [Remove Background API](https://docs.photoroom.com/getting-started/api-reference-openapi.md), through the existing server-side `/api/product-images/remove-background` route. Configure `PHOTOROOM_API_KEY` in the repository-local `.env` with a PhotoRoom API key, then restart the development server. Keep the key server-side and never commit `.env`. The previous `REMOVE_BG_API_KEY` is no longer used.
+
+Requests use `https://sdk.photoroom.com/v1/segment` with PNG, RGBA, full resolution, and cropping to the subject border. Authentication, quota, and processing failures leave the image unprocessed for retry. Existing saved transparent images remain usable. PDF imports remain at `REVIEW_REQUIRED` until manually approved; changing providers does not approve an import or create an advert.
+
+Permanent supplier-badge rule: omit P20S and BL MOTOR from PDF-derived product names, models, and specifications. Vision analysis locates their separate badge regions and the PDF crop clears those regions before PhotoRoom processing. Preserve product lettering, independently stated brushless specifications, capacities, and sold-separately conditions. Raw source previews/OCR remain evidence. Overlapping badges or manually uploaded images require visual review; do not approve an image that still contains these badges.
+
 ## Product workflow
 
 Products retain searchable SKU, barcode, brand, category, prices, specifications, original image, processed transparent PNG, and active state. Duplicate SKUs return the existing product instead of creating another. Inactive products remain available historically but are excluded from Create Advert search by default.
 
-Selecting a product copies its values into a new Advertisement snapshot. Later product edits never modify historical adverts. A valid stored processed PNG is reused without calling remove.bg again; replacement images run the existing removal process once and update the Product record.
+Selecting a product copies its values into a new Advertisement snapshot. Later product edits never modify historical adverts. A valid stored processed PNG is reused without calling PhotoRoom again; replacement images run the existing removal process once and update the Product record.
 
 ## Approval workflow
 
@@ -76,6 +84,14 @@ Mock mode is the test and development default and never calls OpenAI. For a cont
 
 Product fields are treated as untrusted data, not instructions. The assistant may use only stored product/advert facts and managed Toolhub hashtags. It must not invent warranty, technical, availability, delivery, discount, accessory, or stock claims. API keys and internal prompts are never returned to staff UI or written to audit metadata.
 
+## Supplier PDF import
+
+`/imports` provides a controlled, page-by-page supplier-flyer workflow. The browser reads selectable PDF text and renders each page at high resolution. The server then combines that text with live OpenAI vision/OCR and layout classification when AI live mode is configured. If provider analysis fails, deterministic extraction preserves available text and routes the page to manual review instead of inventing facts.
+
+The enforced sequence is: import metadata, page analysis, text/OCR classification, product-image selection, background removal of the selected product only, editable review, explicit approval, and draft creation. Whole-page crops are rejected. Multi-product pages require an explicit handling choice, low-confidence core fields remain visible, and a valid nett price uses the existing `nett x 1.558` rule. The PDF filename, page number, extracted/OCR text, source regions, selected and transparent images, corrections, pricing trace, approval, linked draft, and audit events are retained in SQLite.
+
+The import reuses the existing PhotoRoom background removal route and advert template. It never approves, schedules, or publishes the resulting draft. `OPENAI_API_KEY`, `AI_PROVIDER`, `AI_MODEL`, and `AI_MODE` are the same server-side variables documented above; `PHOTOROOM_API_KEY` is shared with product uploads, and there are no additional PDF-specific secrets.
+
 ## Content Planner and controlled automation
 
 The planner ranks only `APPROVED` adverts with deterministic, visible factors: recency, SKU/advert cooldowns, category and campaign balance, approval freshness, priority, limits, and campaign validity. Marketing and Managers may set priority/tags, pin items, generate weekly draft plans, replace or remove items, reorder them, change times, and edit platform captions. Unfilled slots remain gaps when repeat rules prevent safe reuse.
@@ -114,3 +130,25 @@ npm test
 npm run typecheck
 npm run build
 ```
+
+### PDF import pricing review
+
+The final import review offers PDF, SALE (WAS/NOW), and MANUAL pricing. Only the selected mode determines the advert selling price. Confirmed PDF nett prices use the existing 1.558 multiplier and nearest-rand formatting; low-confidence or unconfirmed extraction cannot drive this calculation. SALE uses explicitly entered NOW and displays WAS only in that mode. MANUAL uses the entered final selling price. Neither SALE nor MANUAL requires a PDF nett price.
+
+The immutable `PdfImportPage.extractedPricingJson` snapshot retains original nett/selling fields and confidence. `pricingJson` retains the selected mode and entered values, while `pricingTraceJson` records resolution, calculation, final price, and confirmer. Confirmation identity/time are also stored in `priceConfirmedByUserId` and `priceConfirmedAt`. Advertisements persist `pricingMethod`, `wasPrice`, `nowPrice`, final `sellingPrice`, and `pricingAuditJson`. Audit logs retain before/after pricing. Editing review values invalidates approval; draft creation revalidates saved pricing.
+
+Migration: `prisma/migrations/20260912_import_pricing_modes/migration.sql` adds the fields and backfills original extracted snapshots. Back up existing databases before applying migrations. The historical migration-history mismatch was subsequently repaired after complete schema-equivalence and copied-database tests. Local migration deploy now reports no pending migrations; see the baseline runbook for production-specific verification.
+
+Use `/imports?id=<import-id>` to resume an existing review. Saving corrections does not create an advert. Product identity, specifications, and image review remain required independently of price.
+
+### Product-specific power and included items
+
+`analysisJson.powerInclusion` contains tri-state battery/charger inclusion, quantity, capacity, accessory condition, included/excluded accessories, confidence, verbatim page evidence, source, manual confirmation and confirmer identity. Each PDF page starts with unknown inclusion; nothing carries over from another product. Clear page text is detected conservatively; missing/ambiguous/contradictory evidence displays Confirmation required and supplies no advert statement. The POWER / INCLUDED ITEMS review supports editing and explicit confirmation. Editing invalidates review approval and suppresses unconfirmed wording.
+
+Advertisements retain this structured snapshot in `powerInclusionJson` (additive migration `20260912_product_power_inclusion`). The renderer derives inclusion wording from that record, independently of the general disclaimer. The previous first-exclusion/first-warning-to-disclaimer shortcut is removed. Switching a product in the advert editor clears the previous inclusion statement and disclaimer. PDF analysis and review audit logs retain source and before/after values; manual confirmations record the authenticated user. Existing PDF source text is retained when edited.
+
+The current saw import was backfilled from its exact existing page evidence, Battery and charger sold separately, without changing REVIEW_REQUIRED or creating an advert. Other historical imports remain unknown until reviewed/reanalyzed; no universal sold-separately backfill is applied.
+
+### Production readiness and safe migrations
+
+See [the production-readiness review and baseline runbook](docs/production-readiness.md) before deployment. `db:setup` is for development/bootstrap only; it seeds users and template defaults. Existing production databases require a verified migration baseline and `prisma migrate deploy`, not a reset or blind db push. Multi-product automatic separate/combined generation and embedded-image extraction remain explicitly documented limitations.

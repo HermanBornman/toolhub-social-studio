@@ -20,11 +20,11 @@ export class AIProviderError extends Error {
 export class OpenAIClient implements AIClient {
   constructor(private apiKey = process.env.OPENAI_API_KEY || "", private model = process.env.AI_MODEL || "", private fetcher: typeof fetch = fetch) {}
 
-  async request(body: unknown) {
+  async request(body: unknown, timeoutMs = 20000) {
     if (!this.apiKey) throw new Error("AI_NOT_CONFIGURED");
     if (!this.model) throw new Error("AI_MODEL_NOT_CONFIGURED");
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await this.fetcher("https://api.openai.com/v1/responses", {
         method: "POST",
