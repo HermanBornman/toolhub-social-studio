@@ -9,6 +9,7 @@ import { toPng } from "html-to-image";
 import { AdvertPreview } from "./AdvertPreview";
 import { MoodSelector } from "./MoodSelector";
 import { advertSchema, CAMPAIGN_SUGGESTIONS, CAMPAIGN_TYPES, EMPTY_ADVERT, type AdvertFormData } from "@/lib/advert";
+import { STORE_MANAGER_BRANCH_REQUIRED } from "@/lib/user-role";
 import { formatZar } from "@/lib/format-price";
 import { validateProductImageUpload } from "@/lib/product-image";
 
@@ -21,7 +22,7 @@ function Field({ label, error, hint, children }: { label: string; error?: string
 type SelectableProduct = { id:string; sku:string; barcode?:string|null; brand:string; productName:string; category:string; primarySpecification:string; secondarySpecification?:string|null; feature01?:string|null; feature02?:string|null; keyBenefit?:string|null; currentPrice:number; websiteUrl?:string|null; originalImageUrl:string; processedImageUrl?:string|null; backgroundRemovalStatus:AdvertFormData["backgroundRemovalStatus"] };
 type SelectableBranch = { id:string; name:string };
 
-export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", approvalComment }: { initialData?: AdvertFormData; initialId?: string; initialStatus?: string; approvalComment?: string | null }) {
+export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", approvalComment, branchAssignmentRequired=false }: { initialData?: AdvertFormData; initialId?: string; initialStatus?: string; approvalComment?: string | null; branchAssignmentRequired?: boolean }) {
   const [data, setData] = useState<AdvertFormData>(initialData || EMPTY_ADVERT);
   const [draftId,setDraftId]=useState(initialId||""); const [status,setStatus]=useState(initialStatus);
   const [products,setProducts]=useState<SelectableProduct[]>([]); const [productQuery,setProductQuery]=useState("");
@@ -112,6 +113,7 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
   };
 
   const persistDraft = async () => {
+    if (branchAssignmentRequired) { setNotice({ type: "error", text: STORE_MANAGER_BRANCH_REQUIRED }); return ""; }
     if (!validate()) return "";
     setSaving(true); setNotice(null);
     try {
@@ -143,7 +145,7 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
   };
 
   const finalizeAdvert = async () => {
-    if (!["DRAFT","CHANGES_REQUESTED"].includes(status)) return;
+    if (status !== "DRAFT" || branchAssignmentRequired) return;
     const id=await persistDraft(); if(!id)return;
     setExporting(true);setNotice(null);
     try {
@@ -175,6 +177,7 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
         <div className="form-intro"><div className="step-badge">01</div><div><span className="section-kicker">ADVERT DETAILS</span><h2>Build your product advert</h2><p>Required fields are marked with an asterisk.</p></div></div>
 
         {status === "FINALIZED" && <div className="changes-banner"><strong>FINALIZED · READ ONLY</strong><span>Duplicate this advert from My Adverts to make changes in a new draft.</span></div>}
+        {branchAssignmentRequired && <div className="changes-banner" role="alert"><strong>BRANCH ASSIGNMENT REQUIRED</strong><span>{STORE_MANAGER_BRANCH_REQUIRED}</span></div>}
         <fieldset className="advert-fields" disabled={status === "FINALIZED"}>
         {approvalComment&&<div className="changes-banner"><strong>CHANGES REQUESTED</strong><span>{approvalComment}</span></div>}
         <div className="form-section product-picker">
@@ -239,8 +242,8 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
         {notice && <div className={`notice ${notice.type}`} role="status">{notice.type === "success" ? <ShieldCheck size={17} /> : <span>!</span>}{notice.text}</div>}
         <div className="form-actions">
           <span className={`status-badge ${status.toLowerCase()}`}>{status.replaceAll("_"," ")}</span>
-          <button className="secondary-button" type="button" onClick={saveDraft} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING" || !["DRAFT","CHANGES_REQUESTED"].includes(status)}>{saving ? <Loader2 className="spin" size={18} /> : <Save size={18} />} Save Draft</button>
-          {(status==="DRAFT"||status==="CHANGES_REQUESTED")&&<button className="primary-button finalize-button" type="button" onClick={finalizeAdvert} disabled={saving||exporting||data.backgroundRemovalStatus!=="COMPLETE"}><ShieldCheck size={18}/> FINALIZE ADVERT</button>}
+          <button className="secondary-button" type="button" onClick={saveDraft} disabled={branchAssignmentRequired || saving || exporting || data.backgroundRemovalStatus === "PROCESSING" || !["DRAFT","CHANGES_REQUESTED"].includes(status)}>{saving ? <Loader2 className="spin" size={18} /> : <Save size={18} />} Save Draft</button>
+          {status==="DRAFT"&&<button className="primary-button finalize-button" type="button" onClick={finalizeAdvert} disabled={branchAssignmentRequired||saving||exporting||data.backgroundRemovalStatus!=="COMPLETE"}><ShieldCheck size={18}/> FINALIZE ADVERT</button>}
           {exportImage&&<a className="secondary-button" href={exportImage} download={`${data.sku||"toolhub-advert"}.png`}>Download exported PNG<img src={exportImage} alt="Exported 1080 by 1350 advert" style={{width:108,height:135,objectFit:"contain"}}/></a>}
           {status==="FINALIZED"&&draftId&&<a className="primary-button" href={`/api/adverts/${draftId}/artwork?download=1`}><Download size={18}/> Download PNG</a>}
           {status!=="FINALIZED"&&<button className="secondary-button" type="button" onClick={exportPng} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING"}>{exporting ? <Loader2 className="spin" size={18} /> : <Download size={18} />} Preview PNG</button>}

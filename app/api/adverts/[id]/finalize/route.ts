@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ensureCurrentUser, errorResponse } from "@/lib/server-user";
-import { canFinalizeAdvert } from "@/lib/user-role";
+import { canFinalizeAdvert, STORE_MANAGER_BRANCH_REQUIRED } from "@/lib/user-role";
 import { pngDimensions } from "@/lib/png";
 import { advertSchema } from "@/lib/advert";
 import { withAuthorization } from "@/lib/route-authorization";
@@ -15,6 +15,7 @@ async function POSTHandler(request: Request, { params }: { params: Promise<{ id:
     const id = (await params).id;
     const current = await prisma.advertisement.findUnique({ where: { id } });
     if (!current) return NextResponse.json({ error: "Advert not found" }, { status: 404 });
+    if (user.role === "STORE_MANAGER" && !user.branchId) return NextResponse.json({ error: STORE_MANAGER_BRANCH_REQUIRED }, { status: 409 });
     if (!canFinalizeAdvert(current, user)) throw new Error("FORBIDDEN");
 
     const facts = advertSchema.safeParse({

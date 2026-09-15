@@ -35,6 +35,6 @@ export default async function AdvertPage({ params }: { params: Promise<{ id: str
     qrUrl: advert.qrUrl,
   };
   return <AppShell title={advert.status === "DRAFT" ? "Edit Advert" : "Final Advert"} subtitle={`${advert.sku} · ${advert.status.replaceAll("_", " ")}`}>
-    <CreateAdvert initialData={data} initialId={advert.id} initialStatus={advert.status}/>
+    <CreateAdvert initialData={data} initialId={advert.id} initialStatus={advert.status} branchAssignmentRequired={user.role === "STORE_MANAGER" && !user.branchId}/>
   </AppShell>;
 }

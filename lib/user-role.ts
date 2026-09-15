@@ -1,5 +1,6 @@
 export const USER_ROLES = ["STORE_MANAGER", "ADMIN", "STAFF", "MARKETING", "MANAGER"] as const;
 export const PHASE1_USER_ROLES = ["STORE_MANAGER", "ADMIN"] as const;
+export const STORE_MANAGER_BRANCH_REQUIRED = "Admin branch assignment required before you can create or finalize branch-scoped adverts.";
 export type UserRole = (typeof USER_ROLES)[number];
 export type CurrentUser = { id: string; name: string; email: string; role: UserRole; branchId?: string | null; active?: boolean };
 
@@ -32,8 +33,10 @@ export function canEditAdvert(advert: { status: string; createdByUserId: string 
   return advert.createdByUserId === user.id && ["DRAFT", "CHANGES_REQUESTED"].includes(advert.status);
 }
 
-export function canFinalizeAdvert(advert: { status: string; createdByUserId: string }, user: CurrentUser) {
-  return canCreateAdvert(user.role) && ["DRAFT", "CHANGES_REQUESTED"].includes(advert.status) && (user.role === "ADMIN" || advert.createdByUserId === user.id);
+export function canFinalizeAdvert(advert: { status: string; createdByUserId: string; branchId?: string | null }, user: CurrentUser) {
+  if (!canCreateAdvert(user.role) || advert.status !== "DRAFT") return false;
+  if (user.role === "STORE_MANAGER") return Boolean(user.branchId && advert.branchId === user.branchId && advert.createdByUserId === user.id);
+  return user.role === "ADMIN" || advert.createdByUserId === user.id;
 }
 
 export function isStoreManager(role: UserRole) {

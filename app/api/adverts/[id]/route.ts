@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { advertSchema } from "@/lib/advert";
 import { prisma } from "@/lib/prisma";
 import { selectProductImage } from "@/lib/product-image";
-import { canEditAdvert, canUseOriginalImage } from "@/lib/user-role";
+import { canEditAdvert, canUseOriginalImage, STORE_MANAGER_BRANCH_REQUIRED } from "@/lib/user-role";
 import { ensureCurrentUser } from "@/lib/server-user";
 
 async function GETHandler(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -22,6 +22,7 @@ async function PUTHandler(request: Request, { params }: { params: Promise<{ id: 
   const current = await prisma.advertisement.findUnique({ where: { id } });
   if (!current) return NextResponse.json({ error: "Advert not found" }, { status: 404 });
   if (!canEditAdvert(current, user)) return NextResponse.json({ error: "This advert is locked for editing" }, { status: 403 });
+  if (user.role === "STORE_MANAGER" && !user.branchId) return NextResponse.json({ error: STORE_MANAGER_BRANCH_REQUIRED }, { status: 409 });
   const parsed = advertSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Advert validation failed", issues: parsed.error.flatten().fieldErrors }, { status: 400 });
   if (parsed.data.useOriginalImage && !canUseOriginalImage(user.role)) return NextResponse.json({ error: "Only Marketing or Admin users may use the original product image" }, { status: 403 });

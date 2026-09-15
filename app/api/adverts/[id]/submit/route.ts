@@ -31,4 +31,4 @@ async function POSTHandler(request: Request, { params }: { params: Promise<{ id:
   } catch (error) { const result = errorResponse(error); return NextResponse.json({ error: result.error }, { status: result.status }); }
 }
 
-export const POST = withAuthorization("CREATE", POSTHandler);
+export const POST = withAuthorization("SUBMIT", POSTHandler);

@@ -32,4 +32,5 @@ INSERT INTO "Branch" ("id", "code", "name", "active", "createdAt", "updatedAt") 
   ('branch-stonewood', 'STONEWOOD', 'Toolhub Stonewood', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
   ('branch-yzerfontein', 'YZERFONTEIN', 'Toolhub Yzerfontein', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
-UPDATE "User" SET "branchId" = 'branch-polokwane-crossing' WHERE "role" = 'STORE_MANAGER' AND "branchId" IS NULL;
+-- Existing users and adverts remain unassigned when no trusted exact branch mapping exists.
+-- Admin branch assignment required before user can create/finalize branch-scoped adverts.

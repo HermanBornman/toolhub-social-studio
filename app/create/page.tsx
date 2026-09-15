@@ -18,7 +18,7 @@ export default async function CreateAdvertPage({searchParams}:{searchParams:Prom
   const initialData={...EMPTY_ADVERT,branchId:branch?.id,branchName:branch?.name||"",...(product?{productId:product.id,productName:product.productName,sku:product.sku,primarySpecification:product.primarySpecification,secondarySpecification:product.secondarySpecification||"",feature01:product.feature01||"",feature02:product.feature02||"",keyBenefit:product.keyBenefit||"",sellingPrice:String(product.currentPrice),qrUrl:product.websiteUrl||EMPTY_ADVERT.qrUrl,originalImageUrl:product.originalImageUrl,processedImageUrl:product.processedImageUrl||"",backgroundRemovalStatus:product.backgroundRemovalStatus as typeof EMPTY_ADVERT.backgroundRemovalStatus}:{})};
   return (
     <AppShell title="Create Advert" subtitle="Enter the product details. The template handles the design.">
-      <CreateAdvert initialData={initialData} />
+      <CreateAdvert initialData={initialData} branchAssignmentRequired={user.role === "STORE_MANAGER" && !branch} />
     </AppShell>
   );
 }

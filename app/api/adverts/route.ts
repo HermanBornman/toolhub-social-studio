@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { advertSchema, TEMPLATE_VERSION } from "@/lib/advert";
 import { prisma } from "@/lib/prisma";
 import { selectProductImage } from "@/lib/product-image";
-import { canCreateAdvert, canUseOriginalImage } from "@/lib/user-role";
+import { canCreateAdvert, canUseOriginalImage, STORE_MANAGER_BRANCH_REQUIRED } from "@/lib/user-role";
 import { ensureCurrentUser, errorResponse } from "@/lib/server-user";
 
 async function GETHandler() {
@@ -22,6 +22,7 @@ async function POSTHandler(request: Request) {
   try {
     const user = await ensureCurrentUser();
     if (!canCreateAdvert(user.role)) return NextResponse.json({ error: "You do not have permission to create adverts" }, { status: 403 });
+    if (user.role === "STORE_MANAGER" && !user.branchId) return NextResponse.json({ error: STORE_MANAGER_BRANCH_REQUIRED }, { status: 409 });
     const parsed = advertSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Advert validation failed", issues: parsed.error.flatten().fieldErrors }, { status: 400 });
     await validateProductImages(parsed.data, true);
