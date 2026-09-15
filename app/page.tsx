@@ -4,9 +4,8 @@ import { Dashboard } from "@/components/Dashboard";
 
 export default async function Home() { await requirePageUser();
   return (
-    <AppShell title="Dashboard" subtitle="Create consistent, on-brand product content.">
+    <AppShell title="Store Manager Dashboard" subtitle="Create, finalize, and download branch-ready Toolhub adverts.">
       <Dashboard />
     </AppShell>
   );
 }
-

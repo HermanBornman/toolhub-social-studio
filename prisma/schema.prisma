@@ -10,17 +10,19 @@ datasource db {
 model User {
   authProvider       String?
   authProviderUserId String?
-  active             Boolean @default(true)
   sessions           AuthSession[]
-  @@unique([authProvider, authProviderUserId])
   id               String                 @id
   email            String                 @unique
   name             String
-  role             String                 @default("STAFF")
+  role             String                 @default("STORE_MANAGER")
+  active           Boolean                @default(true)
+  branchId         String?
+  branch           Branch?                @relation(fields: [branchId], references: [id])
   createdAdverts   Advertisement[]        @relation("AdvertCreator")
   editedAdverts    Advertisement[]        @relation("AdvertEditor")
   submittedAdverts Advertisement[]        @relation("AdvertSubmitter")
   approvedAdverts  Advertisement[]        @relation("AdvertApprover")
+  finalizedAdverts Advertisement[]        @relation("AdvertFinalizer")
   rejectedAdverts  Advertisement[]        @relation("AdvertRejector")
   createdProducts  Product[]              @relation("ProductCreator")
   updatedProducts  Product[]              @relation("ProductUpdater")
@@ -33,6 +35,20 @@ model User {
   pdfImports       PdfImport[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
+
+  @@unique([authProvider, authProviderUserId])
+  @@index([branchId])
+}
+
+model Branch {
+  id        String          @id @default(cuid())
+  code      String          @unique
+  name      String          @unique
+  active    Boolean         @default(true)
+  users     User[]
+  adverts   Advertisement[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 }
 
 model Product {
@@ -74,6 +90,8 @@ model Advertisement {
   productId               String?
   createdByUserId         String                 @default("dev-staff-1")
   lastEditedByUserId      String                 @default("dev-staff-1")
+  branchId                String?
+  branchName              String                 @default("")
   productName             String
   sku                     String
   primarySpecification    String
@@ -106,6 +124,14 @@ model Advertisement {
   rejectedAt              DateTime?
   rejectedByUserId        String?
   approvalComment         String?
+  finalizedAt             DateTime?
+  finalizedByUserId       String?
+  finalArtworkData        String?
+  finalArtworkMimeType    String?
+  finalArtworkWidth       Int?
+  finalArtworkHeight      Int?
+  finalVersion            Int                    @default(0)
+  archivedAt              DateTime?
   templateId              String?
   product                 Product?               @relation(fields: [productId], references: [id])
   createdBy               User                   @relation("AdvertCreator", fields: [createdByUserId], references: [id])
@@ -113,6 +139,8 @@ model Advertisement {
   submittedBy             User?                  @relation("AdvertSubmitter", fields: [submittedByUserId], references: [id])
   approvedBy              User?                  @relation("AdvertApprover", fields: [approvedByUserId], references: [id])
   rejectedBy              User?                  @relation("AdvertRejector", fields: [rejectedByUserId], references: [id])
+  finalizedBy             User?                  @relation("AdvertFinalizer", fields: [finalizedByUserId], references: [id])
+  branch                  Branch?                @relation(fields: [branchId], references: [id])
   mood                    MascotMood             @relation(fields: [moodId], references: [id])
   template                Template?              @relation(fields: [templateId], references: [id])
   assets                  AdvertisementAsset[]
@@ -129,6 +157,8 @@ model Advertisement {
 
   @@index([status])
   @@index([createdByUserId])
+  @@index([branchId])
+  @@index([finalizedAt])
   @@index([submittedAt])
   @@index([createdAt])
 }

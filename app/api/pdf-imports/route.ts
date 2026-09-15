@@ -3,11 +3,12 @@ import { NextResponse } from "next/server";
 import { pdfImportSchema } from "@/lib/pdf-import";
 import { prisma } from "@/lib/prisma";
 import { ensureCurrentUser } from "@/lib/server-user";
+import { isStoreManager } from "@/lib/user-role";
 
 async function GETHandler() {
   const user = await ensureCurrentUser();
   const imports = await prisma.pdfImport.findMany({
-    where: user.role === "STAFF" ? { createdByUserId: user.id } : undefined,
+    where: isStoreManager(user.role) ? { createdByUserId: user.id } : undefined,
     include: { pages: { orderBy: { pageNumber: "asc" }, select: { id: true, pageNumber: true, status: true, advertisementId: true } } },
     orderBy: { updatedAt: "desc" }, take: 30,
   });

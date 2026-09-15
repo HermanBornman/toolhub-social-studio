@@ -31,6 +31,8 @@ export const CAMPAIGN_SUGGESTIONS: Record<(typeof CAMPAIGN_TYPES)[number], strin
 };
 
 export type AdvertFormData = {
+  branchId?: string;
+  branchName?: string;
   productId?: string;
   productName: string;
   sku: string;
@@ -55,6 +57,8 @@ export type AdvertFormData = {
 };
 
 export const EMPTY_ADVERT: AdvertFormData = {
+  branchId: undefined,
+  branchName: "",
   pricingMethod: "MANUAL",
   productId: undefined,
   productName: "",
@@ -77,6 +81,8 @@ export const EMPTY_ADVERT: AdvertFormData = {
 };
 
 export const advertSchema = z.object({
+  branchId: z.string().min(1, "Branch is required").optional(),
+  branchName: z.string().trim().min(1, "Branch is required").max(80).optional(),
   productId: z.string().optional(),
   productName: z.string().trim().min(1, "Product Name is required").max(60, "Keep Product Name under 60 characters"),
   sku: z.string().trim().min(1, "SKU is required").max(32),

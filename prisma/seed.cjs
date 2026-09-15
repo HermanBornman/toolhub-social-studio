@@ -10,13 +10,21 @@ const moods = [
   ["smile", "Smile", "/mascots/smile.png"],
 ];
 const users = [
-  ["dev-staff-1", "Toolhub Staff", "STAFF"],
+  ["dev-store-manager-1", "Toolhub Store Manager", "STORE_MANAGER"],
   ["dev-marketing-1", "Toolhub Marketing", "MARKETING"],
   ["dev-manager-1", "Toolhub Manager", "MANAGER"],
   ["dev-admin-1", "Toolhub Admin", "ADMIN"],
 ];
 
 async function main() {
+  const branches = [
+    ["branch-polokwane-crossing", "POLOKWANE_CROSSING", "Toolhub Polokwane Crossing"],
+    ["branch-stonewood", "STONEWOOD", "Toolhub Stonewood"],
+    ["branch-yzerfontein", "YZERFONTEIN", "Toolhub Yzerfontein"],
+  ];
+  for (const [id, code, name] of branches) {
+    await prisma.branch.upsert({ where: { id }, update: { code, name, active: true }, create: { id, code, name, active: true } });
+  }
   await prisma.template.upsert({
     where: { version: "TOOLHUB_SOCIAL_MASTER_V1" },
     update: { active: true },
@@ -24,7 +32,7 @@ async function main() {
   });
   const seedDemo = process.env.TOOLHUB_SEED_DEMO === "true" && process.env.NODE_ENV !== "production";
   for (const [id, name, role] of seedDemo ? users : []) {
-    await prisma.user.upsert({ where: { id }, update: {}, create: { id, name, role, email: `${id}@toolhub.local` } });
+    await prisma.user.upsert({ where: { id }, update: {}, create: { id, name, role, branchId: role === "STORE_MANAGER" ? "branch-polokwane-crossing" : null, email: `${id}@toolhub.local` } });
   }
   for (const [id, displayName, assetPath] of moods) {
     const data = { id, displayName, assetPath, thumbnailPath: assetPath, active: true, defaultScale: 1, xPosition: 0, yPosition: 0 };
@@ -38,7 +46,7 @@ async function main() {
       sku: "TEST-CIDLI20", brand: "INGCO", productName: "20V CORDLESS DRILL KIT", category: "Cordless Tools",
       primarySpecification: "2 x 2.0Ah BATTERIES + CHARGER", secondarySpecification: "Compact, powerful drilling and screwdriving kit",
       feature01: "20V POWER", feature02: "2 BATTERIES", keyBenefit: "IDEAL FOR DIY & TRADE", currentPrice: 2499,
-      websiteUrl: "https://www.toolhub.co.za", backgroundRemovalStatus: "PENDING", createdByUserId: "dev-staff-1", updatedByUserId: "dev-staff-1",
+      websiteUrl: "https://www.toolhub.co.za", backgroundRemovalStatus: "PENDING", createdByUserId: "dev-store-manager-1", updatedByUserId: "dev-store-manager-1",
     },
   });
 }

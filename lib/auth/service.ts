@@ -9,9 +9,9 @@ export const RECOVERY_SECONDS = 15 * 60;
 // Injectable dependencies permit real persistence tests with a network-free provider.
 export function createAuthService(db: PrismaClient, provider: AuthProvider, encryptionKey: string, now = () => new Date()) {
   const cipher = tokenCipher(encryptionKey);
-  function publicUser(user: { id: string; name: string; email: string; role: string; active: boolean }): CurrentUser {
+  function publicUser(user: { id: string; name: string; email: string; role: string; active: boolean; branchId?: string | null }): CurrentUser {
     if (!user.active || !USER_ROLES.includes(user.role as UserRole)) throw new Error("UNAUTHENTICATED");
-    return { id: user.id, name: user.name, email: user.email, role: user.role as UserRole };
+    return { id: user.id, name: user.name, email: user.email, role: user.role as UserRole, branchId: user.branchId ?? null, active: user.active };
   }
   async function audit(action: string, user?: CurrentUser) {
     await db.auditLog.create({ data: { action, entityType: "USER", entityId: user?.id || "anonymous", userId: user?.id, userName: user?.name } });

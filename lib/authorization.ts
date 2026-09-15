@@ -1,7 +1,7 @@
 import { requireRole, type CurrentUser, type UserRole } from "./user-role";
 export const PERMISSIONS = {
-  READ: ["STAFF","MARKETING","MANAGER","ADMIN"],
-  CREATE: ["STAFF","MARKETING","ADMIN"],
+  READ: ["STORE_MANAGER","STAFF","MARKETING","MANAGER","ADMIN"],
+  CREATE: ["STORE_MANAGER","STAFF","MARKETING","ADMIN"],
   MARKETING: ["MARKETING","MANAGER","ADMIN"],
   REVIEW: ["MANAGER","ADMIN"],
   ADMIN: ["ADMIN"],

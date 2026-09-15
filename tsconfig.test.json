@@ -33,6 +33,7 @@
     "lib/pdf-import.ts",
     "lib/pdf-review-state.ts",
     "lib/png-transparency.ts",
+    "lib/png.ts",
     "lib/pdf-analysis.ts",
     "lib/import-pricing.ts",
     "lib/power-inclusion.ts",

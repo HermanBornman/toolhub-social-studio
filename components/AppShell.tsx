@@ -3,18 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BrainCircuit, CalendarDays, ChartNoAxesCombined, CheckCircle2, ChevronRight, FileSearch, LayoutDashboard, Package, PlusSquare, Settings } from "lucide-react";
+import { ChevronRight, FileSearch, Images, LayoutDashboard, Package, PlusSquare, Users } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/create", label: "Create Advert", icon: PlusSquare },
   { href: "/imports", label: "Import Supplier PDF", icon: FileSearch },
   { href: "/products", label: "Products", icon: Package },
-  { href: "/approvals", label: "Approvals", icon: CheckCircle2 },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/planner", label: "Content Planner", icon: BrainCircuit },
-  { href: "/reports", label: "Reports", icon: ChartNoAxesCombined },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/adverts", label: "My Adverts", icon: Images },
+  { href: "/admin/users", label: "Users & Branches", icon: Users, adminOnly: true },
 ];
 
 export function AppShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
@@ -30,11 +27,8 @@ export function AppShell({ title, subtitle, children }: { title: string; subtitl
         </div>
         <p className="nav-label">WORKSPACE</p>
         <nav className="main-nav" aria-label="Main navigation">
-          {nav.map(({ href, label, icon: Icon }) => {
-            if (!user.role) return null;
-            if (user.role === "MANAGER" && ["/create","/settings"].includes(href)) return null;
-            if (user.role === "STAFF" && ["/planner","/reports","/settings"].includes(href)) return null;
-            if (!["MANAGER","ADMIN"].includes(user.role) && href === "/approvals") return null;
+          {nav.map(({ href, label, icon: Icon, adminOnly }) => {
+            if (adminOnly && user.role!=="ADMIN") return null;
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <Link key={href} href={href} className={active ? "active" : ""}>
@@ -43,11 +37,10 @@ export function AppShell({ title, subtitle, children }: { title: string; subtitl
             );
           })}
         </nav>
-        {user.role === "ADMIN" && <Link href="/settings/users" className="secondary-button">User access</Link>}
         <button className="secondary-button" onClick={async () => { const response = await fetch("/api/auth/logout", {method:"POST"}); if(response.ok) window.location.assign("/login"); }}>Sign Out</button>
         <div className="template-card">
           <span>ACTIVE TEMPLATE</span>
-          <strong>Social Master V1</strong>
+          <strong>Store Advert Master V1</strong>
           <small>1080 × 1350 · Locked</small>
         </div>
         <div className="sidebar-user">
@@ -56,7 +49,7 @@ export function AppShell({ title, subtitle, children }: { title: string; subtitl
       </aside>
       <main className="workspace">
         <header className="page-header">
-          <div><p className="eyebrow">TOOLHUB / SOCIAL MEDIA</p><h1>{title}</h1><p>{subtitle}</p></div>
+          <div><p className="eyebrow">TOOLHUB / STORE ADVERTS</p><h1>{title}</h1><p>{subtitle}</p></div>
           <div className="status-pill"><i /> Master template active</div>
         </header>
         <div className="page-content">{children}</div>

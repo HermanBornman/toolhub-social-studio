@@ -12,7 +12,7 @@ import { ensureCurrentUser, errorResponse } from "@/lib/server-user";
 async function GETHandler() {
   const user = await ensureCurrentUser();
   const adverts = await prisma.advertisement.findMany({
-    where: user.role === "STAFF" ? { createdByUserId: user.id } : undefined,
+    where: user.role === "ADMIN" ? undefined : { createdByUserId: user.id },
     include: { createdBy: { select: { name: true } } }, orderBy: { updatedAt: "desc" }, take: 30,
   });
   return NextResponse.json(adverts);
@@ -31,10 +31,17 @@ async function POSTHandler(request: Request) {
     const mood = await prisma.mascotMood.findUnique({ where: { id: input.moodId } });
     if (!mood?.active) return NextResponse.json({ error: "The selected mascot mood is not approved" }, { status: 400 });
     const template = await prisma.template.findUnique({ where: { version: TEMPLATE_VERSION } });
+    if (user.role === "STORE_MANAGER" && input.branchId && input.branchId !== user.branchId) return NextResponse.json({ error: "You may only create adverts for your assigned branch" }, { status: 403 });
+    const branchId = user.role === "STORE_MANAGER" ? user.branchId : input.branchId;
+    const branch = branchId
+      ? await prisma.branch.findFirst({ where: { id: branchId, active: true } })
+      : await prisma.branch.findFirst({ where: { active: true }, orderBy: { name: "asc" } });
+    if (!branch) return NextResponse.json({ error: "Select an active branch" }, { status: 400 });
+    if (user.role === "STORE_MANAGER" && (!user.branchId || branch.id !== user.branchId)) return NextResponse.json({ error: "You may only create adverts for your assigned branch" }, { status: 403 });
     const { productId, ...snapshot } = input;
     const advert = await prisma.$transaction(async (tx) => {
       const created = await tx.advertisement.create({ data: {
-        ...snapshot, productId: productId || null, productImage: selectProductImage(input), sellingPrice: Math.round(input.sellingPrice),
+        ...snapshot, branchId: branch.id, branchName: branch.name, productId: productId || null, productImage: selectProductImage(input), sellingPrice: Math.round(input.sellingPrice),
         templateVersion: TEMPLATE_VERSION, status: "DRAFT", templateId: template?.id, createdByUserId: user.id, lastEditedByUserId: user.id,
       } });
       await tx.auditLog.create({ data: { action: "CREATE_DRAFT", entityType: "Advertisement", entityId: created.id, advertisementId: created.id, userId: user.id, userName: user.name, newStatus: "DRAFT", metadata: JSON.stringify({ ...correctionAudit(null,created,{userId:user.id,advertisementId:created.id}), templateVersion: TEMPLATE_VERSION, productId, powerInclusion:readPower(input.powerInclusionJson) }) } });

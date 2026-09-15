@@ -2,7 +2,7 @@ import { authorize } from "./authorization";
 import { z } from "zod";
 import { canApproveAdvert, canEditAdvert, canReviewAdvert, type CurrentUser } from "./user-role";
 
-export const ADVERT_STATUSES = ["DRAFT", "AWAITING_APPROVAL", "CHANGES_REQUESTED", "APPROVED", "REJECTED", "SCHEDULED", "PUBLISHED", "FAILED", "ARCHIVED"] as const;
+export const ADVERT_STATUSES = ["DRAFT", "AWAITING_APPROVAL", "CHANGES_REQUESTED", "APPROVED", "REJECTED", "SCHEDULED", "PUBLISHED", "FAILED", "FINALIZED", "ARCHIVED"] as const;
 export type AdvertStatus = (typeof ADVERT_STATUSES)[number];
 export const ACTIVE_WORKFLOW_STATUSES = ADVERT_STATUSES.slice(0, 5);
 export const AUDIT_ACTIONS = [
@@ -13,6 +13,9 @@ export const AUDIT_ACTIONS = [
   "RESUBMIT_FOR_APPROVAL",
   "APPROVE",
   "REJECT",
+  "FINALIZE",
+  "DUPLICATE_DRAFT",
+  "ARCHIVE_DRAFT",
   "PRODUCT_CREATE",
   "PRODUCT_UPDATE",
   "PRODUCT_IMAGE_REPLACE",

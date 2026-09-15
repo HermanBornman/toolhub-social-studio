@@ -10,6 +10,7 @@ import { calculateToolhubPrice, coreReviewIssues, MULTI_PRODUCT_DECISIONS, parse
 import { defaultPricing, extractedPricing, pricingInputSchema, resolvePricing } from "@/lib/import-pricing";
 import { prisma } from "@/lib/prisma";
 import { ensureCurrentUser } from "@/lib/server-user";
+import { isStoreManager } from "@/lib/user-role";
 
 const requestSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("save"), analysis: pdfPageAnalysisSchema, pricing: pricingInputSchema.optional(), selectedImageDataUrl: z.string().max(12_000_000), processedImageDataUrl: z.string().max(12_000_000), backgroundRemovalStatus: z.enum(["PENDING", "PROCESSING", "COMPLETE", "FAILED"]), multiProductDecision: z.enum(MULTI_PRODUCT_DECISIONS).nullable().optional() }),
@@ -25,7 +26,7 @@ async function POSTHandler(request: Request, { params }: { params: Promise<{ id:
   if (!input.success) return NextResponse.json({ error: "Review data is invalid", issues: input.error.flatten().fieldErrors }, { status: 400 });
   const page = await prisma.pdfImportPage.findUnique({ where: { pdfImportId_pageNumber: { pdfImportId: id, pageNumber } }, include: { pdfImport: true } });
   if (!page) return NextResponse.json({ error: "PDF page not found" }, { status: 404 });
-  if (user.role === "STAFF" && page.pdfImport.createdByUserId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (isStoreManager(user.role) && page.pdfImport.createdByUserId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   if (input.data.action === "save" || input.data.action === "approve") {
     if (page.advertisementId) return NextResponse.json({ error: "This page already has an advert; edit that draft instead" }, { status: 409 });
@@ -65,7 +66,14 @@ async function POSTHandler(request: Request, { params }: { params: Promise<{ id:
   const resolved = resolvePricing(source, pricing);
   if (resolved.errors.length || !page.priceConfirmedByUserId) return NextResponse.json({ error: "Confirm pricing before creating an advert", issues: resolved.errors }, { status: 409 });
   const sellingPrice = resolved.finalSellingPrice;
+  const branch=user.role==="STORE_MANAGER"
+    ? user.branchId
+      ? await prisma.branch.findFirst({where:{id:user.branchId,active:true}})
+      : null
+    : await prisma.branch.findFirst({where:{active:true},orderBy:{name:"asc"}});
+  if(!branch)return NextResponse.json({error:"Assign an active branch to this Store Manager before creating an advert"},{status:409});
   const advertInput = {
+    branchId:branch.id,branchName:branch.name,
     productName: analysis.productName.value, sku: analysis.sku.value,
     primarySpecification: analysis.technicalSpecifications[0]?.value || "", secondarySpecification: analysis.technicalSpecifications.slice(1, 3).map((item) => item.value).join(" · "),
     feature01: analysis.technicalSpecifications[3]?.value || "", feature02: analysis.technicalSpecifications[4]?.value || "", keyBenefit: "",

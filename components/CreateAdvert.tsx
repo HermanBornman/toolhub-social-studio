@@ -1,12 +1,10 @@
 "use client";
 
-import { dedupeSpecFields } from "@/lib/specifications";
-
 import { PowerInclusionReview } from "./PowerInclusionReview";
 import { readPower } from "@/lib/power-inclusion";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Download, ImagePlus, Loader2, LockKeyhole, Save, Search, Send, ShieldCheck, UploadCloud } from "lucide-react";
+import { Download, ImagePlus, Loader2, LockKeyhole, Save, Search, ShieldCheck, UploadCloud } from "lucide-react";
 import { toPng } from "html-to-image";
 import { AdvertPreview } from "./AdvertPreview";
 import { MoodSelector } from "./MoodSelector";
@@ -21,11 +19,13 @@ function Field({ label, error, hint, children }: { label: string; error?: string
 }
 
 type SelectableProduct = { id:string; sku:string; barcode?:string|null; brand:string; productName:string; category:string; primarySpecification:string; secondarySpecification?:string|null; feature01?:string|null; feature02?:string|null; keyBenefit?:string|null; currentPrice:number; websiteUrl?:string|null; originalImageUrl:string; processedImageUrl?:string|null; backgroundRemovalStatus:AdvertFormData["backgroundRemovalStatus"] };
+type SelectableBranch = { id:string; name:string };
 
 export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", approvalComment }: { initialData?: AdvertFormData; initialId?: string; initialStatus?: string; approvalComment?: string | null }) {
   const [data, setData] = useState<AdvertFormData>(initialData || EMPTY_ADVERT);
   const [draftId,setDraftId]=useState(initialId||""); const [status,setStatus]=useState(initialStatus);
   const [products,setProducts]=useState<SelectableProduct[]>([]); const [productQuery,setProductQuery]=useState("");
+  const [branches,setBranches]=useState<SelectableBranch[]>([]);
   const [errors, setErrors] = useState<Errors>({});
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -33,12 +33,12 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
   const [exportImage,setExportImage] = useState("");
   const [imageStatusText, setImageStatusText] = useState("Upload product image");
   const [canUseOriginal, setCanUseOriginal] = useState(false);
-  const savedRevision=useRef("");
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ fetch(`/api/products?q=${encodeURIComponent(productQuery)}`).then(r=>r.json()).then(value=>setProducts(Array.isArray(value)?value:[])); },[productQuery]);
+  useEffect(()=>{Promise.all([fetch("/api/branches").then(r=>r.json()),fetch("/api/session").then(r=>r.json())]).then(([branchRows,user])=>{const rows=Array.isArray(branchRows)?branchRows:[];setBranches(rows);setData(current=>{if(current.branchId)return current;const selected=rows.find((branch:SelectableBranch)=>branch.id===user.branchId)||rows[0];return selected?{...current,branchId:selected.id,branchName:selected.name}:current;});});},[]);
 
-  const selectProduct=(product:SelectableProduct)=>{ setData(current=>({...current,pricingMethod:"MANUAL",wasPrice:null,powerInclusionJson:"{}",disclaimer:"WHILE STOCKS LAST",productId:product.id,productName:product.productName,sku:product.sku,primarySpecification:product.primarySpecification,secondarySpecification:product.secondarySpecification||"",feature01:product.feature01||"",feature02:product.feature02||"",keyBenefit:product.keyBenefit||"",sellingPrice:String(product.currentPrice),qrUrl:product.websiteUrl||"https://www.toolhub.co.za",originalImageUrl:product.originalImageUrl,processedImageUrl:product.processedImageUrl||"",backgroundRemovalStatus:product.backgroundRemovalStatus,useOriginalImage:false})); setImageStatusText(product.backgroundRemovalStatus==="COMPLETE"?"Saved transparent product image ready":"Product needs a transparent image"); setNotice(null); };
+  const selectProduct=(product:SelectableProduct)=>{ setData(current=>({...current,powerInclusionJson:"{}",disclaimer:"WHILE STOCKS LAST",productId:product.id,productName:product.productName,sku:product.sku,primarySpecification:product.primarySpecification,secondarySpecification:product.secondarySpecification||"",feature01:product.feature01||"",feature02:product.feature02||"",keyBenefit:product.keyBenefit||"",sellingPrice:String(product.currentPrice),qrUrl:product.websiteUrl||"https://www.toolhub.co.za",originalImageUrl:product.originalImageUrl,processedImageUrl:product.processedImageUrl||"",backgroundRemovalStatus:product.backgroundRemovalStatus,useOriginalImage:false})); setImageStatusText(product.backgroundRemovalStatus==="COMPLETE"?"Saved transparent product image ready":"Product needs a transparent image"); setNotice(null); };
 
   const setField = <K extends keyof AdvertFormData>(field: K, value: AdvertFormData[K]) => {
     setData((current) => ({ ...current, [field]: value }));
@@ -118,8 +118,6 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
       const response = await fetch(draftId?`/api/adverts/${draftId}`:"/api/adverts", { method: draftId?"PUT":"POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to save draft");
-      savedRevision.current=result.updatedAt;
-      setData(current=>dedupeSpecFields(current));
       setDraftId(result.id); setNotice({ type: "success", text: `Draft saved · ${result.id.slice(0, 8).toUpperCase()}` }); return result.id as string;
     } catch (error) {
       setNotice({ type: "error", text: error instanceof Error ? error.message : "Unable to save draft" });
@@ -127,38 +125,39 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
     } finally { setSaving(false); }
   };
   const saveDraft=()=>{void persistDraft();};
-  const submitForApproval=async()=>{
-    const id=await persistDraft();if(!id||!canvasRef.current)return;
-    setSaving(true);
-    try {
-      await document.fonts.ready;
-      const bounds=canvasRef.current.getBoundingClientRect();
-      const artworkDataUrl=await toPng(canvasRef.current,{width:bounds.width,height:bounds.height,canvasWidth:1080,canvasHeight:1350,pixelRatio:1,cacheBust:true});
-      const response=await fetch(`/api/adverts/${id}/submit`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({artworkDataUrl,expectedUpdatedAt:savedRevision.current})});
-      const result=await response.json();if(!response.ok)throw new Error(result.error||"Unable to submit");
-      setStatus(result.status);setNotice({type:"success",text:"Advert and final artwork submitted for manager approval."});
-    } catch(error) {setNotice({type:"error",text:error instanceof Error?error.message:"Unable to submit"});}
-    finally {setSaving(false);}
-  };
-
-  const exportPng = async () => {
+  const renderPng = async () => {
     if (!validate() || !canvasRef.current) return;
-    setExporting(true); setNotice(null);
-    try {
-      await document.fonts.ready;
-      const bounds = canvasRef.current.getBoundingClientRect();
-      const dataUrl = await toPng(canvasRef.current, {
+    await document.fonts.ready;
+    const bounds = canvasRef.current.getBoundingClientRect();
+    const dataUrl = await toPng(canvasRef.current, {
         width: bounds.width,
         height: bounds.height,
         canvasWidth: 1080,
         canvasHeight: 1350,
         pixelRatio: 1,
         cacheBust: true,
-      });
-      const image = new Image();
-      image.src = dataUrl;
-      await image.decode();
-      if (image.naturalWidth !== 1080 || image.naturalHeight !== 1350) throw new Error(`Export was ${image.naturalWidth} × ${image.naturalHeight}, expected 1080 × 1350`);
+    });
+    const image = new Image(); image.src = dataUrl; await image.decode();
+    if (image.naturalWidth !== 1080 || image.naturalHeight !== 1350) throw new Error(`Export was ${image.naturalWidth} × ${image.naturalHeight}, expected 1080 × 1350`);
+    return dataUrl;
+  };
+
+  const finalizeAdvert = async () => {
+    if (!["DRAFT","CHANGES_REQUESTED"].includes(status)) return;
+    const id=await persistDraft(); if(!id)return;
+    setExporting(true);setNotice(null);
+    try {
+      const dataUrl=await renderPng(); if(!dataUrl)return;
+      const response=await fetch(`/api/adverts/${id}/finalize`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({artworkDataUrl:dataUrl})});
+      const result=await response.json();if(!response.ok)throw new Error(result.error||"Unable to finalize advert");
+      setExportImage(dataUrl);setStatus("FINALIZED");setNotice({type:"success",text:"Advert finalized and frozen at exactly 1080 × 1350 px."});
+    }catch(error){setNotice({type:"error",text:error instanceof Error?error.message:"Unable to finalize advert"});}finally{setExporting(false);}
+  };
+
+  const exportPng = async () => {
+    setExporting(true); setNotice(null);
+    try {
+      const dataUrl = await renderPng(); if(!dataUrl)return;
       setExportImage(dataUrl);
       const link = document.createElement("a");
       link.download = `${data.sku || "toolhub-advert"}.png`;
@@ -175,6 +174,8 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
       <section className="form-panel">
         <div className="form-intro"><div className="step-badge">01</div><div><span className="section-kicker">ADVERT DETAILS</span><h2>Build your product advert</h2><p>Required fields are marked with an asterisk.</p></div></div>
 
+        {status === "FINALIZED" && <div className="changes-banner"><strong>FINALIZED · READ ONLY</strong><span>Duplicate this advert from My Adverts to make changes in a new draft.</span></div>}
+        <fieldset className="advert-fields" disabled={status === "FINALIZED"}>
         {approvalComment&&<div className="changes-banner"><strong>CHANGES REQUESTED</strong><span>{approvalComment}</span></div>}
         <div className="form-section product-picker">
           <div className="form-section-heading"><span>SELECT PRODUCT</span><small>Reuse stored specifications and transparent imagery.</small></div>
@@ -208,6 +209,7 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
 
         <div className="form-section">
           <div className="form-section-heading"><span>PRICE & LINK</span><small>What should customers act on?</small></div>
+          <Field label="Pricing mode"><select value={data.pricingMethod||"PDF"} onChange={e=>setField("pricingMethod",e.target.value as "PDF"|"SALE"|"MANUAL")}><option value="PDF">PDF / calculated price</option><option value="SALE">Sale WAS / NOW</option><option value="MANUAL">Manual final selling price</option></select></Field>
           <div className="field-grid two">
             {data.pricingMethod === "SALE" && <Field label="WAS price *" error={errors.wasPrice}><div className="price-input"><span>R</span><input inputMode="numeric" value={data.wasPrice ?? ""} onChange={e=>setField("wasPrice",e.target.value ? Number(e.target.value.replace(/\D/g,"")) : null)}/></div></Field>}
             <Field label={data.pricingMethod === "SALE" ? "NOW price *" : "Selling Price *"} error={errors.sellingPrice} hint={`Preview: ${formatZar(data.sellingPrice)}`}><div className="price-input"><span>R</span><input inputMode="numeric" value={data.sellingPrice} onChange={(e) => setField("sellingPrice", e.target.value.replace(/\D/g, ""))} /></div></Field>
@@ -215,6 +217,7 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
             <Field label="Disclaimer" error={errors.disclaimer}><input value={data.disclaimer} maxLength={50} onChange={(e) => setField("disclaimer", e.target.value.toUpperCase())} /></Field>
           </div>
           <Field label="QR URL *" error={errors.qrUrl} hint="A real scannable QR code is generated in the preview."><input type="url" value={data.qrUrl} onChange={(e) => setField("qrUrl", e.target.value)} /></Field>
+          <Field label="Branch / Store *" error={errors.branchId}><select value={data.branchId||""} onChange={e=>{const branch=branches.find(item=>item.id===e.target.value);setData(current=>({...current,branchId:branch?.id,branchName:branch?.name||""}));}}>{branches.map(branch=><option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></Field>
         </div>
 
         <div className="form-section">
@@ -231,15 +234,16 @@ export function CreateAdvert({ initialData, initialId, initialStatus="DRAFT", ap
           <div className="form-section-heading"><span>MOOD</span><small>Choose one approved mascot expression.</small></div>
           <MoodSelector value={data.moodId} onChange={(mood) => setField("moodId", mood)} />
         </div>
+        </fieldset>
 
         {notice && <div className={`notice ${notice.type}`} role="status">{notice.type === "success" ? <ShieldCheck size={17} /> : <span>!</span>}{notice.text}</div>}
         <div className="form-actions">
           <span className={`status-badge ${status.toLowerCase()}`}>{status.replaceAll("_"," ")}</span>
-          <button className="secondary-button" type="button" onClick={saveDraft} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING" || status==="AWAITING_APPROVAL" || status==="APPROVED"}>{saving ? <Loader2 className="spin" size={18} /> : <Save size={18} />} Save Draft</button>
-          {(status==="DRAFT"||status==="CHANGES_REQUESTED")&&<button className="secondary-button submit-button" type="button" onClick={submitForApproval} disabled={saving||exporting||data.backgroundRemovalStatus!=="COMPLETE"}><Send size={18}/>{status==="CHANGES_REQUESTED"?"Resubmit for Approval":"Submit for Approval"}</button>}
-          {status==="APPROVED"&&draftId&&<Link className="primary-button" href={`/adverts/${draftId}/publish`}>Schedule / Publish</Link>}
+          <button className="secondary-button" type="button" onClick={saveDraft} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING" || !["DRAFT","CHANGES_REQUESTED"].includes(status)}>{saving ? <Loader2 className="spin" size={18} /> : <Save size={18} />} Save Draft</button>
+          {(status==="DRAFT"||status==="CHANGES_REQUESTED")&&<button className="primary-button finalize-button" type="button" onClick={finalizeAdvert} disabled={saving||exporting||data.backgroundRemovalStatus!=="COMPLETE"}><ShieldCheck size={18}/> FINALIZE ADVERT</button>}
           {exportImage&&<a className="secondary-button" href={exportImage} download={`${data.sku||"toolhub-advert"}.png`}>Download exported PNG<img src={exportImage} alt="Exported 1080 by 1350 advert" style={{width:108,height:135,objectFit:"contain"}}/></a>}
-          <button className="primary-button" type="button" onClick={exportPng} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING"}>{exporting ? <Loader2 className="spin" size={18} /> : <Download size={18} />} Export PNG</button>
+          {status==="FINALIZED"&&draftId&&<a className="primary-button" href={`/api/adverts/${draftId}/artwork?download=1`}><Download size={18}/> Download PNG</a>}
+          {status!=="FINALIZED"&&<button className="secondary-button" type="button" onClick={exportPng} disabled={saving || exporting || data.backgroundRemovalStatus === "PROCESSING"}>{exporting ? <Loader2 className="spin" size={18} /> : <Download size={18} />} Preview PNG</button>}
         </div>
       </section>
 

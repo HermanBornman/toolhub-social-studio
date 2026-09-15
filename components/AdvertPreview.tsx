@@ -53,7 +53,7 @@ export function AdvertPreview({ data, canvasRef }: { data: AdvertFormData; canva
         </div>
 
         <div className="qr-card">
-          <div><strong>SCAN TO SHOP</strong><span>www.toolhub.co.za</span></div>
+          <div><strong>SCAN TO SHOP</strong><span>{data.branchName || "TOOLHUB"}</span></div>
           <div className="qr-code"><QRCodeSVG value={qrValue} size={150} bgColor="#FFFFFF" fgColor="#000000" level="M" marginSize={1} /></div>
         </div>
         <div className="love-tools bottom-love">#LoveTools</div>

@@ -7,6 +7,7 @@ import { pageAnalysisRequestSchema } from "@/lib/pdf-import";
 import { extractedPricing } from "@/lib/import-pricing";
 import { prisma } from "@/lib/prisma";
 import { ensureCurrentUser } from "@/lib/server-user";
+import { isStoreManager } from "@/lib/user-role";
 
 async function POSTHandler(request: Request, { params }: { params: Promise<{ id: string; pageNumber: string }> }) {
   const user = await ensureCurrentUser();
@@ -17,7 +18,7 @@ async function POSTHandler(request: Request, { params }: { params: Promise<{ id:
   await validateSourceImage(parsed.data.pagePreviewDataUrl);
   const page = await prisma.pdfImportPage.findUnique({ where: { pdfImportId_pageNumber: { pdfImportId: id, pageNumber } }, include: { pdfImport: true } });
   if (!page) return NextResponse.json({ error: "PDF page not found" }, { status: 404 });
-  if (user.role === "STAFF" && page.pdfImport.createdByUserId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (isStoreManager(user.role) && page.pdfImport.createdByUserId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if(page.advertisementId)return NextResponse.json({error:"This page already has a draft"},{status:409});
   await prisma.pdfImportPage.update({ where: { id: page.id }, data: { status: "ANALYZING", rawExtractedText: parsed.data.embeddedText, pagePreviewDataUrl: parsed.data.pagePreviewDataUrl } });
   const result = await analyzePdfPage({ pageNumber, ...parsed.data });

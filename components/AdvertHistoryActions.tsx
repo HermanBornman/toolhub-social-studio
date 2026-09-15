@@ -1,0 +1,5 @@
+"use client";
+import {useRouter} from "next/navigation";
+import {useState} from "react";
+import {Archive,Copy,Loader2} from "lucide-react";
+export function AdvertHistoryActions({id,status}:{id:string;status:string}){const router=useRouter(),[busy,setBusy]=useState("");const act=async(action:"DUPLICATE"|"ARCHIVE")=>{setBusy(action);const response=await fetch(`/api/adverts/${id}/draft-action`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})});const result=await response.json();setBusy("");if(!response.ok){alert(result.error||"Action failed");return;}if(action==="DUPLICATE")router.push(`/adverts/${result.id}`);else router.refresh();};return <div className="history-actions"><button onClick={()=>act("DUPLICATE")} disabled={!!busy}>{busy==="DUPLICATE"?<Loader2 className="spin"/>:<Copy size={15}/>} Duplicate to draft</button>{status==="DRAFT"&&<button onClick={()=>act("ARCHIVE")} disabled={!!busy}>{busy==="ARCHIVE"?<Loader2 className="spin"/>:<Archive size={15}/>} Archive draft</button>}</div>}
