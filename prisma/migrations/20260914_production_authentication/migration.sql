@@ -1,7 +1,6 @@
 -- Additive only: preserve existing identities and all historical ownership.
 ALTER TABLE "User" ADD COLUMN "authProvider" TEXT;
 ALTER TABLE "User" ADD COLUMN "authProviderUserId" TEXT;
-ALTER TABLE "User" ADD COLUMN "active" BOOLEAN NOT NULL DEFAULT true;
 CREATE UNIQUE INDEX "User_authProvider_authProviderUserId_key" ON "User"("authProvider", "authProviderUserId");
 CREATE TABLE "AuthSession" (
  "id" TEXT NOT NULL PRIMARY KEY,

@@ -2,9 +2,9 @@
 
 ## Boundary
 
-Supabase Auth owns passwords, reset tokens and email delivery. The Next.js server uses the official Supabase JavaScript SDK. No provider tokens, service-role key or role claims are sent to client components. Toolhub looks up the verified Supabase user ID in its existing User table; email is never an automatic account-linking mechanism. Roles and active status always come from Toolhub.
+Supabase Auth owns passwords, reset tokens, OTP generation and identity verification. SMSPortal only delivers the exact OTP supplied to the signed Supabase Send SMS Hook. The Next.js server uses the official Supabase JavaScript SDK. No provider tokens, service-role key, SMSPortal credential or role claims are sent to client components. Toolhub looks up the verified Supabase user ID in its existing User table; email or phone is never an automatic account-linking mechanism. Roles, branch and active status always come from Toolhub.
 
-The browser holds a random 256-bit opaque session secret in an HttpOnly SameSite=Lax cookie (Secure with __Host- prefix in production, Path=/, no Domain). Only its SHA-256 digest is stored. Provider access/refresh tokens are encrypted using AES-256-GCM with a server-managed 32-byte key. App sessions expire absolutely after 12 hours; provider access tokens refresh as necessary without extending that deadline. Every private request verifies provider identity and reloads local role/active status. Logout deletes the local session before best-effort provider revocation. Deactivation deletes every local session immediately. A provider outage denies access.
+The browser holds a random 256-bit opaque session secret in an HttpOnly SameSite=Lax cookie (Secure with __Host- prefix in production, Path=/, no Domain). Only its SHA-256 digest is stored. Provider access/refresh tokens are encrypted using AES-256-GCM with a server-managed 32-byte key. Normal app sessions expire absolutely after 12 hours. A Store Manager who explicitly selects **Stay logged in for 5 working days** gets an absolute expiry at the end of the fifth Monday-Friday day, counting the login weekday as day one. Provider token refresh never extends either deadline. Every private request verifies provider identity and reloads current local role, branch and active status. Logout deletes the local session before best-effort provider revocation. Deactivation and role/mobile changes delete every local session immediately. A provider outage denies access.
 
 All private pages call requirePageUser before fetching business data and redirect unauthenticated users to /login. Every private API uses withAuthorization independently, returns 401/403 and disables caching. Mutations require an exact Origin match with configured APP_URL, including login, logout and reset. There is no environment-driven identity fallback, including AUTH_MODE=dev. Tests inject a mock provider inside the test process only.
 
@@ -12,7 +12,7 @@ All private pages call requirePageUser before fetching business data and redirec
 
 Use Node.js 22 or newer (required by the selected Supabase SDK). The package manifest declares this minimum.
 
-Set AUTH_MODE=supabase, APP_URL to the exact deployed HTTPS origin, SUPABASE_URL to the existing project URL and SUPABASE_ANON_KEY to its publishable/anon key. Keep SUPABASE_SERVICE_ROLE_KEY server-only for existing storage and the operator onboarding command; normal sign-in does not use it.
+Set AUTH_MODE=supabase, APP_URL to the exact deployed HTTPS origin, SUPABASE_URL to the existing project URL and SUPABASE_ANON_KEY to its publishable/anon key. Keep SUPABASE_SERVICE_ROLE_KEY, SUPABASE_SEND_SMS_HOOK_SECRET, SMSPORTAL_CLIENT_ID and SMSPORTAL_API_SECRET server-only. Normal sign-in does not expose any of them.
 
 Generate AUTH_ENCRYPTION_KEY using node crypto randomBytes(32).toString('hex') and place it in the server secret store. Do not commit, log or send it in chat. Rotation invalidates existing encrypted sessions: revoke AuthSession rows during a planned maintenance window, rotate the key, then require fresh sign-in. Back up encryption keys separately from database backups. Keep all instances on the same key and shared persistent database. SQLite requires a durable single-host deployment; it is not a distributed database.
 
@@ -20,7 +20,7 @@ AUTH_MODE unset, unknown or dev fails closed. Old TOOLHUB_USER_ROLE/ID/NAME valu
 
 ## Supabase dashboard setup (operator action, not performed automatically)
 
-1. Enable email/password authentication. Disable **Allow new users to sign up**, anonymous sign-ins and unused social providers. Require confirmed email. Configure provider password policy (minimum 12 characters recommended), rate limits and abuse protection.
+1. Enable phone authentication for existing users and keep public user creation disabled. Enable email/password only for the temporary Admin fallback. Disable **Allow new users to sign up**, anonymous sign-ins and unused social providers. Require confirmed email for Admin accounts. Configure provider password policy (minimum 12 characters recommended), OTP expiry, rate limits and abuse protection.
 2. Set Site URL to APP_URL. Allow only the exact APP_URL/auth/confirm redirect, plus explicitly needed local test origins. Do not use wildcard production redirects.
 3. Configure custom SMTP, verify sender and delivery. Set short provider OTP expiry. Recovery and invite templates must point directly to the application using the token hash in a URL fragment:
    - Recovery: `{{ .SiteURL }}/auth/confirm#token_hash={{ .TokenHash }}&type=recovery`
@@ -28,6 +28,14 @@ AUTH_MODE unset, unknown or dev fails closed. Old TOOLHUB_USER_ROLE/ID/NAME valu
    Use these in the email link href; do not use the default implicit-flow ConfirmationURL. The fragment is not sent to the server or referrer logs. The confirmation page removes it from browser history and requires a user click before POSTing it for native verifyOtp verification. Do not enable email click tracking that rewrites or logs the fragment.
 4. Users follow the link, set a password in a 15-minute RECOVERY session, then sign in. Recovery sessions cannot access the studio. Password updates revoke all local sessions.
 5. Test with a dedicated test Supabase project before public deployment. Verify email delivery, provider rate limits, native refresh/revocation and deployed HTTPS cookie behavior. No hosted tenant settings or real emails were changed by this implementation.
+
+## Supabase Send SMS Hook and SMSPortal
+
+1. Create the deployment secrets `SMSPORTAL_CLIENT_ID`, `SMSPORTAL_API_SECRET` and `SUPABASE_SEND_SMS_HOOK_SECRET`. They must not use a `NEXT_PUBLIC_` prefix.
+2. In Supabase Authentication Hooks, enable the **Send SMS** HTTP hook and set its URL to the deployed HTTPS `/api/auth/send-sms-hook` endpoint. Store the hook signing secret exactly as issued by Supabase. Do not configure a second OTP generator.
+3. The endpoint verifies the Standard Webhooks signature before reading `user.phone` and `sms.otp`, normalizes the South African number, then sends one SMSPortal v3 BulkMessages request. It returns a generic error and never logs the phone, OTP, signature or provider credentials.
+4. Admins provision Store Managers with a unique South African mobile identity. Existing users with no reliable mobile remain unassigned until an Admin supplies one; no migration guesses a number.
+5. Live validation must confirm signed-hook delivery, correct and incorrect/expired OTP behavior, logout/revocation and production Secure cookie behavior before deployment is approved.
 
 ## Safe manual invitations and first administrator
 
@@ -47,16 +55,17 @@ The command is an explicit operator mutation. Do not execute it against producti
 
 ## Schema and migration
 
-Migration **20260914_production_authentication** is additive:
-- User: nullable authProvider and authProviderUserId with composite unique index; active=true by default. Existing IDs, email, roles and all ownership relations retained. Unlinked historical users cannot sign in.
+Migrations **20260914_production_authentication**, **20260915_phase1_store_manager** and **20260916_phase1_sms_otp** are additive:
+- User: nullable authProvider and authProviderUserId with composite unique index; `active=true` is added by the later Phase 1 migration. Keeping `active` in the later migration also permits an existing database that already recorded Phase 1 but not production authentication to apply the missing authentication migration without a duplicate-column failure. Existing IDs, email, roles and all ownership relations are retained. Unlinked historical users cannot sign in.
 - AuthSession: hashed secret, local User FK, encrypted provider tokens, absolute expiry, APP/RECOVERY purpose, timestamps. Indexes on user and expiry.
 - AuthThrottle: opaque HMAC bucket ID, atomic attempt counter and expiry; no email/IP/password/token storage.
+- User: nullable display mobile and unique normalized E.164 mobile. AuthSession: remembered-session marker. No historical phone or branch is guessed.
 
 Rehearse on a restored disposable backup. Run prisma validate, migrate deploy and verify row counts/ownership before considering production. db:setup uses db push and is **for disposable/development databases only**; never use it as the production migration procedure. Existing P3005 baseline/rehearsal requirements remain separate. Expired sessions/throttle buckets are pruned on auth activity. Purging AuthSession revokes logins but does not delete users or business data. A database rollback must invalidate sessions created after the restored backup; prefer session-table purge and encryption-key rotation to avoid resurrecting revoked sessions.
 
 ## Audit and abuse controls
 
-USER_LOGIN, USER_LOGOUT, USER_ROLE_CHANGE, USER_ACTIVATED, USER_DEACTIVATED, USER_INVITED, LOGIN_FAILED, PASSWORD_RESET_STARTED and PASSWORD_UPDATED are recorded without passwords, provider tokens or cookie secrets. Failed logins use anonymous entity attribution and generic messages. Role/status changes retain before/after values and administrator identity.
+USER_LOGIN, USER_LOGOUT, OTP_REQUESTED, OTP_REQUEST_FAILED, OTP_LOGIN_FAILED, USER_ROLE_CHANGE, USER_ACTIVATED, USER_DEACTIVATED, USER_INVITED, LOGIN_FAILED, PASSWORD_RESET_STARTED and PASSWORD_UPDATED are recorded without OTPs, phone numbers, passwords, provider tokens or cookie secrets. Failed logins use anonymous entity attribution and generic messages. Role/status changes retain before/after values and administrator identity.
 
 Database-backed 10-minute counters limit login attempts per normalized email (10), resets per email (3), and aggregate anonymous auth work (200). Bucket IDs are HMACs, not raw email. Supabase provides additional native protections. Provider traffic appears from the app server, so configure provider limits accordingly. An edge/WAF per-IP limit and CAPTCHA may be needed before broad public access; do not trust arbitrary forwarded IP headers in the app. Global/per-account limits can be exhausted by an attacker, temporarily denying legitimate login; monitor this and tune a trusted ingress policy.
 

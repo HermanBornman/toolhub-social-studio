@@ -27,6 +27,7 @@
     "react-dom": "19.1.1",
     "server-only": "0.0.1",
     "sharp": "0.35.4",
+    "standardwebhooks": "^1.1.1",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -35,7 +36,7 @@
     "@types/react": "19.1.13",
     "@types/react-dom": "19.1.9",
     "autoprefixer": "10.4.21",
-    "postcss": "8.5.6",
+    "postcss": "8.5.23",
     "prisma": "6.16.2",
     "tailwindcss": "3.4.17",
     "typescript": "5.9.2"

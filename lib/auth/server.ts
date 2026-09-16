@@ -7,6 +7,7 @@ import { createAuthService } from "./service";
 import { supabaseProvider } from "./provider";
 
 export const sessionCookieName = () => process.env.NODE_ENV === "production" ? "__Host-toolhub-session" : "toolhub-session";
+export const rememberedMarkerCookieName = () => process.env.NODE_ENV === "production" ? "__Host-toolhub-remembered" : "toolhub-remembered";
 const requestUser = new AsyncLocalStorage<CurrentUser>();
 export const withRequestUser = <T>(user: CurrentUser, fn: () => Promise<T>) => requestUser.run(user, fn);
 export function authService() { return createAuthService(prisma, supabaseProvider(), process.env.AUTH_ENCRYPTION_KEY || ""); }

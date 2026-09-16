@@ -5,12 +5,20 @@ export type ProviderTokens = { accessToken: string; refreshToken: string; expire
 export type ProviderIdentity = { id: string };
 export interface AuthProvider {
   login(email: string, password: string): Promise<ProviderTokens>;
+  requestPhoneOtp(phone: string): Promise<void>;
+  verifyPhoneOtp(phone: string, otp: string): Promise<ProviderTokens>;
   verify(accessToken: string): Promise<ProviderIdentity>;
   refresh(refreshToken: string): Promise<ProviderTokens>;
   logout(accessToken: string): Promise<void>;
   reset(email: string, redirectTo: string): Promise<void>;
   redeem(tokenHash: string, type: "recovery" | "invite"): Promise<ProviderTokens>;
   updatePassword(tokens: ProviderTokens, password: string): Promise<void>;
+}
+
+function configurationError(): never {
+  // Keep diagnostics actionable without logging URLs, keys, tokens, or user input.
+  console.error("[auth] Supabase authentication configuration is unavailable");
+  throw new Error("AUTH_CONFIGURATION_ERROR");
 }
 
 function tokens(session: Session | null): ProviderTokens {
@@ -20,15 +28,25 @@ function tokens(session: Session | null): ProviderTokens {
 
 // Server-only adapter. Never return provider credentials to a browser or log errors from this SDK.
 export function supabaseProvider(): AuthProvider {
-  if (process.env.AUTH_MODE !== "supabase") throw new Error("UNAUTHENTICATED");
+  if (process.env.AUTH_MODE !== "supabase") configurationError();
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error("UNAUTHENTICATED");
-  const endpoint = new URL(url);
-  if (endpoint.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)) throw new Error("UNAUTHENTICATED");
+  if (!url || !key) configurationError();
+  let endpoint: URL;
+  try { endpoint = new URL(url); } catch { configurationError(); }
+  if (endpoint.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)) configurationError();
   const client = () => createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
   return {
     async login(email, password) {
       const { data, error } = await client().auth.signInWithPassword({ email, password });
+      if (error) throw new Error("UNAUTHENTICATED");
+      return tokens(data.session);
+    },
+    async requestPhoneOtp(phone) {
+      const { error } = await client().auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
+      if (error) throw new Error("UNAUTHENTICATED");
+    },
+    async verifyPhoneOtp(phone, token) {
+      const { data, error } = await client().auth.verifyOtp({ phone, token, type: "sms" });
       if (error) throw new Error("UNAUTHENTICATED");
       return tokens(data.session);
     },

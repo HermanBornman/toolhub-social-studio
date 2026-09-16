@@ -13,6 +13,8 @@ model User {
   sessions           AuthSession[]
   id               String                 @id
   email            String                 @unique
+  mobileNumber     String?
+  mobileE164       String?                @unique
   name             String
   role             String                 @default("STORE_MANAGER")
   active           Boolean                @default(true)
@@ -502,6 +504,7 @@ model AuthSession {
   providerTokens String
   expiresAt DateTime
   purpose String @default("APP")
+  remembered Boolean @default(false)
   createdAt DateTime @default(now())
   @@index([userId])
   @@index([expiresAt])

@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { USER_ROLES, type CurrentUser, type UserRole } from "../user-role";
 import type { AuthProvider, ProviderTokens } from "./provider";
 import { newSessionSecret, sessionDigest, tokenCipher } from "./crypto";
+import { fiveWorkingDayExpiry, normalizeSouthAfricanMobile } from "./phone";
 
 export const SESSION_SECONDS = 12 * 60 * 60;
 export const RECOVERY_SECONDS = 15 * 60;
@@ -22,19 +23,21 @@ export function createAuthService(db: PrismaClient, provider: AuthProvider, encr
     if (!user) throw new Error("UNAUTHENTICATED");
     return publicUser(user);
   }
-  async function start(tokens: ProviderTokens, purpose: "APP" | "RECOVERY", previousSecret?: string) {
+  async function start(tokens: ProviderTokens, purpose: "APP" | "RECOVERY", previousSecret?: string, options: { remembered?: boolean; expectedUserId?: string; allowedRoles?: UserRole[]; expectedMobile?: string } = {}) {
     let user: CurrentUser;
     try { user = await mapped(tokens); }
     catch { await provider.logout(tokens.accessToken).catch(() => {}); throw new Error("UNAUTHENTICATED"); }
     const secret = newSessionSecret();
-    const expiresAt = new Date(now().getTime() + (purpose === "APP" ? SESSION_SECONDS : RECOVERY_SECONDS) * 1000);
+    if (options.expectedUserId && user.id !== options.expectedUserId) { await provider.logout(tokens.accessToken).catch(() => {}); throw new Error("UNAUTHENTICATED"); }
+    if (options.allowedRoles && !options.allowedRoles.includes(user.role)) { await provider.logout(tokens.accessToken).catch(() => {}); throw new Error("UNAUTHENTICATED"); }
+    const expiresAt = purpose === "APP" && options.remembered ? fiveWorkingDayExpiry(now()) : new Date(now().getTime() + (purpose === "APP" ? SESSION_SECONDS : RECOVERY_SECONDS) * 1000);
     await db.$transaction(async tx => {
       // Re-check active state in the same write transaction (deactivation must win races).
       const current = await tx.user.findUnique({ where: { id: user.id } });
-      if (!current?.active) throw new Error("UNAUTHENTICATED");
+      if (!current?.active || (options.expectedMobile && current.mobileE164 !== options.expectedMobile) || (options.allowedRoles && !options.allowedRoles.includes(current.role as UserRole))) throw new Error("UNAUTHENTICATED");
       if (previousSecret) await tx.authSession.deleteMany({ where: { id: sessionDigest(previousSecret) } });
       await tx.authSession.deleteMany({ where: { expiresAt: { lte: now() } } });
-      await tx.authSession.create({ data: { id: sessionDigest(secret), userId: user.id, providerTokens: cipher.encrypt(tokens), expiresAt, purpose } });
+      await tx.authSession.create({ data: { id: sessionDigest(secret), userId: user.id, providerTokens: cipher.encrypt(tokens), expiresAt, purpose, remembered: Boolean(options.remembered) } });
       await tx.auditLog.create({ data: { action: purpose === "APP" ? "USER_LOGIN" : "PASSWORD_RESET_STARTED", entityType: "USER", entityId: user.id, userId: user.id, userName: user.name } });
     });
     return { secret, user, expiresAt };
@@ -66,6 +69,26 @@ export function createAuthService(db: PrismaClient, provider: AuthProvider, encr
     async login(email: string, password: string, previousSecret?: string) {
       try { return await start(await provider.login(email, password), "APP", previousSecret); }
       catch { await audit("LOGIN_FAILED"); throw new Error("UNAUTHENTICATED"); }
+    },
+    async loginAdmin(email: string, password: string, previousSecret?: string) {
+      try { return await start(await provider.login(email, password), "APP", previousSecret, { allowedRoles: ["ADMIN"] }); }
+      catch { await audit("LOGIN_FAILED"); throw new Error("UNAUTHENTICATED"); }
+    },
+    async requestPhoneOtp(phone: string) {
+      const normalized = normalizeSouthAfricanMobile(phone);
+      const user = await db.user.findUnique({ where: { mobileE164: normalized.mobileE164 } });
+      if (!user?.active || user.role !== "STORE_MANAGER" || user.authProvider !== "supabase" || !user.authProviderUserId) { await audit("OTP_REQUEST_FAILED"); throw new Error("UNAUTHENTICATED"); }
+      try { await provider.requestPhoneOtp(normalized.mobileE164); }
+      catch { await audit("OTP_REQUEST_FAILED"); throw new Error("UNAUTHENTICATED"); }
+      await audit("OTP_REQUESTED", publicUser(user));
+    },
+    async verifyPhoneOtp(phone: string, otp: string, remembered: boolean, previousSecret?: string) {
+      const normalized = normalizeSouthAfricanMobile(phone);
+      const expected = await db.user.findUnique({ where: { mobileE164: normalized.mobileE164 } });
+      if (!expected?.active || expected.role !== "STORE_MANAGER" || expected.authProvider !== "supabase" || !expected.authProviderUserId) { await audit("OTP_LOGIN_FAILED"); throw new Error("UNAUTHENTICATED"); }
+      try {
+        return await start(await provider.verifyPhoneOtp(normalized.mobileE164, otp), "APP", previousSecret, { remembered, expectedUserId: expected.id, expectedMobile: normalized.mobileE164, allowedRoles: ["STORE_MANAGER"] });
+      } catch { await audit("OTP_LOGIN_FAILED"); throw new Error("UNAUTHENTICATED"); }
     },
     async getUser(secret?: string) { return (await resolve(secret)).user; },
     async logout(secret?: string) {

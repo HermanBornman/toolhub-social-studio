@@ -10,6 +10,7 @@ CREATE UNIQUE INDEX "Branch_code_key" ON "Branch"("code");
 CREATE UNIQUE INDEX "Branch_name_key" ON "Branch"("name");
 
 ALTER TABLE "User" ADD COLUMN "branchId" TEXT REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "User" ADD COLUMN "active" BOOLEAN NOT NULL DEFAULT true;
 CREATE INDEX "User_branchId_idx" ON "User"("branchId");
 
 ALTER TABLE "Advertisement" ADD COLUMN "branchId" TEXT REFERENCES "Branch"("id") ON DELETE SET NULL ON UPDATE CASCADE;

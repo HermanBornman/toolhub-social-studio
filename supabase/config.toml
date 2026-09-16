@@ -1,0 +1,3 @@
+[functions.send-sms-smsportal]
+verify_jwt = false
+

@@ -22,7 +22,7 @@ export async function changeUser(db: PrismaClient, actor: CurrentUser, id: strin
       const action = field === "role" ? "USER_ROLE_CHANGE" : after.active ? "USER_ACTIVATED" : "USER_DEACTIVATED";
       await tx.auditLog.create({ data: { action, entityType: "USER", entityId: id, userId: actor.id, userName: actor.name, metadata: JSON.stringify({ field, before: before[field], after: after[field] }) } });
     }
-    if (!after.active) await tx.authSession.deleteMany({ where: { userId: id } });
+    if (!after.active || before.role !== after.role) await tx.authSession.deleteMany({ where: { userId: id } });
     return after;
   });
 }
