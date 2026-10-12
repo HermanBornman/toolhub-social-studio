@@ -22,9 +22,9 @@ import type {
 } from "@/lib/types";
 
 const STORES = [
-  { name: "Toolhub Polokwane Crossing", address: "" },
-  { name: "Toolhub Stonewood", address: "33 Tanzanite Cres" },
-  { name: "Toolhub Yzerfontein", address: "29 Buitekant St" },
+  { name: "Toolhub Polokwane Crossing", address: "", telephone: "0793355746" },
+  { name: "Toolhub Stonewood", address: "33 Tanzanite Cres", telephone: "0763363876" },
+  { name: "Toolhub Yzerfontein", address: "29 Buitekant St", telephone: "+27729157948" },
   { name: "Toolhub Online", address: "" },
   { name: "All Toolhub Stores", address: "" },
   { name: "Custom store...", address: "" },
@@ -37,6 +37,8 @@ const CHARACTER_OPTIONS: Record<AdvertForm["characterGender"], Array<{ id: strin
 
 const INITIAL_FORM: AdvertForm = {
   store: STORES[0].name,
+  storeFormat: "Concept Store",
+  productScale: 100,
   customStore: "",
   campaign: "WEEKLY SPECIAL",
   title: "VARIABLE SPEED FLOOR FAN",
@@ -63,8 +65,8 @@ type OcrWorker = {
 };
 
 function storeDetails(form: AdvertForm) {
-  if (form.store === "Custom store...") return { name: form.customStore || "YOUR STORE NAME", address: "" };
-  return STORES.find((store) => store.name === form.store) || { name: form.store, address: "" };
+  if (form.store === "Custom store...") return { name: form.customStore || "YOUR STORE NAME", address: "", telephone: "" };
+  return STORES.find((store) => store.name === form.store) || { name: form.store, address: "", telephone: "" };
 }
 
 function characterAsset(gender: AdvertForm["characterGender"], emotion: string) {
@@ -175,7 +177,7 @@ export default function WeeklyAdGenerator() {
       if (!canvas) return;
       setPreviewReady(false);
       try {
-        await renderAdvert(canvas, form, finalStore.name, finalStore.address);
+        await renderAdvert(canvas, form, finalStore.name, finalStore.address, finalStore.telephone);
         if (!cancelled) setPreviewReady(true);
       } catch {
         if (!cancelled) setPreviewReady(false);
@@ -497,7 +499,7 @@ export default function WeeklyAdGenerator() {
     try {
       const canvas = document.createElement("canvas");
       const advertStore = storeDetails(advertForm);
-      await renderAdvert(canvas, advertForm, advertStore.name, advertStore.address);
+      await renderAdvert(canvas, advertForm, advertStore.name, advertStore.address, advertStore.telephone);
       const advert = canvas.toDataURL("image/png");
       const approvedAt = new Date().toISOString();
       const auditId = crypto.randomUUID();
@@ -600,6 +602,9 @@ export default function WeeklyAdGenerator() {
             <SectionTitle icon="▣">Campaign & store</SectionTitle>
             <Field label="Store name"><select value={form.store} onChange={(event) => update("store", event.target.value)}>{STORES.map((store) => <option key={store.name} value={store.name}>{store.address ? `${store.name} — ${store.address}` : store.name}</option>)}</select></Field>
             {form.store === "Custom store..." ? <Field label="Custom store name"><input value={form.customStore} onChange={(event) => update("customStore", event.target.value)} maxLength={36} /></Field> : null}
+            <Field label="INGCO store format"><select value={form.storeFormat || "Concept Store"} onChange={(event) => update("storeFormat", event.target.value as AdvertForm["storeFormat"])}><option value="Concept Store">INGCO Concept Store</option><option value="Shop In Shop">INGCO Shop In Shop</option></select></Field>
+            <Field label="Product image size"><input type="range" min="60" max="108" step="1" value={form.productScale ?? 100} onChange={(event) => update("productScale", Number(event.target.value))} /><small>{form.productScale ?? 100}%</small></Field>
+            <Field label="Store telephone"><input value={finalStore.telephone || ""} readOnly placeholder="No telephone configured" /></Field>
             <Field label="Campaign label"><input value={form.campaign} onChange={(event) => update("campaign", event.target.value)} maxLength={28} /></Field>
             <div className="two-col">
               <Field label="Start date"><input type="date" value={form.startDate} onChange={(event) => update("startDate", event.target.value)} /></Field>

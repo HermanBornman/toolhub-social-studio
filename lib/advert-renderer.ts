@@ -80,10 +80,13 @@ height: (bottom - top + 1) / scale,
 };
 }
 
-function drawProductHero(context: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number) {
+function drawProductHero(context: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number, productScale = 100) {
 const bounds = opaqueBounds(image);
 const padding = 8;
 const fitted = fitProductBox(bounds.width, bounds.height, width - padding * 2, height - padding * 2);
+const zoom = Math.min(108, Math.max(60, productScale)) / 100;
+fitted.width *= zoom;
+fitted.height *= zoom;
 const drawX = x + (width - fitted.width) / 2;
 const drawY = y + (height - fitted.height) / 2;
 context.save();
@@ -93,7 +96,7 @@ context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height, drawX,
 context.restore();
 }
 
-export async function renderAdvert(canvas: HTMLCanvasElement, form: AdvertForm, storeName: string, storeAddress = "") {
+export async function renderAdvert(canvas: HTMLCanvasElement, form: AdvertForm, storeName: string, storeAddress = "", storeTelephone = "") {
 const context = canvas.getContext("2d");
 if (!context) throw new Error("Advert canvas unavailable");
 canvas.width = 1080;
@@ -127,6 +130,11 @@ context.restore();
 
 // Slightly smaller brand header frees meaningful vertical space for the product.
 contain(context, brand, 90, 20, 900, 244);
+context.fillStyle = "#fff";
+context.font = "700 20px Arial";
+context.textAlign = "center";
+context.fillText(`INGCO ${form.storeFormat || "Concept Store"}`.toUpperCase(), 540, 272, 936);
+context.textAlign = "left";
 context.strokeStyle = "#838589";
 context.lineWidth = 2;
 context.beginPath(); context.moveTo(72, 282); context.lineTo(1008, 282); context.stroke();
@@ -134,10 +142,10 @@ context.fillStyle = "#fff";
 context.font = "700 23px Arial";
 context.textAlign = "center";
 context.fillText(storeName.toUpperCase(), 540, 332, 936);
-if (storeAddress) {
+if (storeAddress || storeTelephone) {
 context.fillStyle = "#c7c9cb";
 context.font = "600 16px Arial";
-context.fillText(storeAddress.toUpperCase(), 540, 358, 936);
+context.fillText([storeAddress.toUpperCase(), storeTelephone].filter(Boolean).join(" · "), 540, 358, 936);
 }
 context.textAlign = "left";
 
@@ -171,7 +179,7 @@ context.fillText(line, 88, specsTop + 282 + lineIndex * 18);
 }
 
 // A deeper 660 x up-to-390 hero area gives the product roughly 35-40% more visual weight.
-drawProductHero(context, product, 348, dividerY + 18, 660, Math.max(1, 990 - (dividerY + 18)));
+drawProductHero(context, product, 348, dividerY + 18, 660, Math.max(1, 990 - (dividerY + 18)), form.productScale ?? 100);
 
 const footer = context.createLinearGradient(0, 980, 0, 1220);
 footer.addColorStop(0, "#252729");
