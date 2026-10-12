@@ -96,6 +96,8 @@ export type PageDraft = {
 };
 
 export type AdvertForm = {
+  storeFormat?: "Concept Store" | "Shop In Shop";
+  productScale?: number;
   store: string;
   customStore: string;
   campaign: string;
