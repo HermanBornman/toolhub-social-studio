@@ -31,7 +31,7 @@ const auth=(operation,body={},origin='http://localhost')=>route('auth/[operation
 const login=async id=>{const result=await service.login(id+'@test.local','test-password-123');browserSecret=result.secret;return result};
 let users={};
 test.before(async()=>{
- execFileSync(process.execPath,[require.resolve('prisma/build/index.js'),'migrate','deploy'],{env:process.env,stdio:'pipe'});
+ execFileSync(process.execPath,[require.resolve('prisma/build/index.js'),'migrate','deploy','--schema','prisma/sqlite/schema.prisma'],{env:process.env,stdio:'pipe'});
  const branch=await prisma.branch.create({data:{id:'otp-branch',code:'OTP',name:'OTP Test Branch'}});
  for(const role of ['STAFF','MARKETING','MANAGER','ADMIN']){const id=role.toLowerCase();users[id]=await prisma.user.create({data:{id,email:id+'@test.local',name:'Test '+role,role,authProvider:'supabase',authProviderUserId:id}})}
  users.storeManager=await prisma.user.create({data:{id:'store-manager',email:'store-manager@test.local',name:'Store Manager',role:'STORE_MANAGER',mobileNumber:'0795144898',mobileE164:'+27795144898',branchId:branch.id,authProvider:'supabase',authProviderUserId:'store-manager'}});

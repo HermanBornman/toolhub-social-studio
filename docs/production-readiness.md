@@ -20,7 +20,7 @@ Each render/analysis page has an isolated failure handler. Editing facts resets 
 
 ## Database baseline runbook
 
-Never use `migrate reset`, `db push --accept-data-loss`, or seed on an existing production database. `db:setup` uses db push and seed and is a development/bootstrap command only. Back up using a consistent database snapshot, stop writes, inventory table/column/index/foreign-key state, and compare it with a migration replay database before resolving migration history. Do not mark a migration applied merely because its name looks historical.
+Never use `migrate reset` or `db push --accept-data-loss` on production. `db:setup` now runs the reviewed PostgreSQL migrations and metadata seed, but it must not be pointed at production without the same backup, approval, and verification gate as direct `migrate deploy`. Back up using a consistent database snapshot, stop writes, inventory table/column/index/foreign-key state, and compare it with a migration replay database before resolving migration history. Do not mark a migration applied merely because its name looks historical.
 
 The original repository lacked the initial migration required by the Phase 2 ALTER/INSERT statements. `20260812_initial_baseline` reconstructs the exact pre-Phase-2 schema from local historical commit `bb75a96^`. The chain replay also exposed AuditLog foreign-key deletion-policy drift. `20260913_audit_retention_alignment` copies every AuditLog column into the schema-equivalent table and changes deletion semantics to SET NULL, preserving audit records. Its replay was tested on disposable databases. It must be tested against a production backup before any production deployment.
 

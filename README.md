@@ -137,7 +137,7 @@ The final import review offers PDF, SALE (WAS/NOW), and MANUAL pricing. Only the
 
 The immutable `PdfImportPage.extractedPricingJson` snapshot retains original nett/selling fields and confidence. `pricingJson` retains the selected mode and entered values, while `pricingTraceJson` records resolution, calculation, final price, and confirmer. Confirmation identity/time are also stored in `priceConfirmedByUserId` and `priceConfirmedAt`. Advertisements persist `pricingMethod`, `wasPrice`, `nowPrice`, final `sellingPrice`, and `pricingAuditJson`. Audit logs retain before/after pricing. Editing review values invalidates approval; draft creation revalidates saved pricing.
 
-Migration: `prisma/migrations/20260912_import_pricing_modes/migration.sql` adds the fields and backfills original extracted snapshots. Back up existing databases before applying migrations. The historical migration-history mismatch was subsequently repaired after complete schema-equivalence and copied-database tests. Local migration deploy now reports no pending migrations; see the baseline runbook for production-specific verification.
+Historical SQLite migration: `prisma/sqlite/migrations/20260912_import_pricing_modes/migration.sql` adds the fields and backfills original extracted snapshots. Back up existing databases before applying migrations. The production runtime now uses the PostgreSQL migration chain under `prisma/migrations`; see the migration review runbook for production-specific verification.
 
 Use `/imports?id=<import-id>` to resume an existing review. Saving corrections does not create an advert. Product identity, specifications, and image review remain required independently of price.
 

@@ -61,7 +61,7 @@ Migrations **20260914_production_authentication**, **20260915_phase1_store_manag
 - AuthThrottle: opaque HMAC bucket ID, atomic attempt counter and expiry; no email/IP/password/token storage.
 - User: nullable display mobile and unique normalized E.164 mobile. AuthSession: remembered-session marker. No historical phone or branch is guessed.
 
-Rehearse on a restored disposable backup. Run prisma validate, migrate deploy and verify row counts/ownership before considering production. db:setup uses db push and is **for disposable/development databases only**; never use it as the production migration procedure. Existing P3005 baseline/rehearsal requirements remain separate. Expired sessions/throttle buckets are pruned on auth activity. Purging AuthSession revokes logins but does not delete users or business data. A database rollback must invalidate sessions created after the restored backup; prefer session-table purge and encryption-key rotation to avoid resurrecting revoked sessions.
+Rehearse on a restored disposable backup. Run prisma validate, migrate deploy and verify row counts/ownership before considering production. `db:setup` now uses the reviewed PostgreSQL migration chain and metadata seed; it must still target an explicitly selected disposable or approved database. Existing P3005 baseline/rehearsal requirements remain separate. Expired sessions/throttle buckets are pruned on auth activity. Purging AuthSession revokes logins but does not delete users or business data. A database rollback must invalidate sessions created after the restored backup; prefer session-table purge and encryption-key rotation to avoid resurrecting revoked sessions.
 
 ## Audit and abuse controls
 

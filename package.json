@@ -3,15 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "prisma generate && next dev",
+    "build": "prisma generate && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.test.json && node --test tests/*.test.cjs",
+    "test": "prisma generate --schema prisma/sqlite/schema.prisma && tsc -p tsconfig.test.json && node --test tests/*.test.cjs",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
-    "db:setup": "prisma generate && prisma db push && prisma db seed"
+    "db:setup": "prisma generate && prisma migrate deploy && prisma db seed",
+    "db:status": "prisma migrate status"
   },
   "dependencies": {
     "@next/swc-win32-x64-msvc": "15.5.25",

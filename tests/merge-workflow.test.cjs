@@ -21,7 +21,7 @@ const params=id=>({params:Promise.resolve({id})});
 const input=()=>({...TEST_ADVERT,sku:'REAL-TEST-SAW',productName:'Reciprocating saw',primarySpecification:'Wood: 210 mm',secondarySpecification:'Metal: 12 mm',feature01:'12 mm metal cutting capacity',feature02:'',sellingPrice:'1299',pricingMethod:'MANUAL',originalImageUrl:dataUrl(),processedImageUrl:dataUrl(),backgroundRemovalStatus:'COMPLETE'});
 let staff,manager,admin,storeManager;
 test.before(async()=>{
- execFileSync(process.execPath,[require.resolve('prisma/build/index.js'),'migrate','deploy'],{env:process.env,stdio:'pipe'});
+ execFileSync(process.execPath,[require.resolve('prisma/build/index.js'),'migrate','deploy','--schema','prisma/sqlite/schema.prisma'],{env:process.env,stdio:'pipe'});
  execFileSync(process.execPath,['prisma/seed.cjs'],{env:process.env,stdio:'pipe'});
  staff=actor('STAFF','staff-test');manager=actor('MANAGER','manager-test');admin=actor('ADMIN','admin-test');storeManager=actor('STORE_MANAGER','store-manager-test');
  for(const user of [staff,manager,admin])await prisma.user.create({data:user});

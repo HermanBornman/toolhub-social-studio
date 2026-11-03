@@ -7,7 +7,7 @@ change hosted records, deploy the web app, or send an OTP.
 ## Source snapshot
 
 - Source: ignored `prisma/dev.db`
-- Consistent backup: ignored `prisma/dev.phase1-backup.db`
+- Fresh consistent cutover backup: ignored `tmp/sqlite-production-cutover.db`
 - Backup SHA-256: `68c4a423daaab402316c8c11622ab6bf8f4fbd5c986850cb517657da4ebd32e1`
 - Size: 1,941,504 bytes
 - SQLite integrity check: `ok`
@@ -16,7 +16,8 @@ change hosted records, deploy the web app, or send an OTP.
 - Prisma migration history table: absent; the SQLite database was created with
   the development `db push` workflow rather than `prisma migrate deploy`
 
-The source contains 49 rows:
+The fresh source snapshot contains 49 rows, of which 45 are eligible for import
+after excluding four expired authentication-control rows:
 
 | Table | Rows |
 | --- | ---: |
@@ -40,8 +41,9 @@ There is exactly one active user with that normalized mobile number.
 
 ## Proposed schema changes
 
-1. Keep the original SQLite schema and migrations unchanged for provenance.
-2. Add the isolated review schema at `prisma/postgresql/schema.prisma` with:
+1. Preserve the original SQLite schema and migrations under `prisma/sqlite` for
+   local regression tests and provenance.
+2. Use `prisma/schema.prisma` as the production runtime schema with:
    - provider `postgresql`
    - `DATABASE_URL` for runtime
    - `DIRECT_URL` for migrations
@@ -53,9 +55,9 @@ There is exactly one active user with that normalized mobile number.
    tables and revoke direct table privileges from `anon` and `authenticated`.
    No public Data API policies are created; the application continues to use its
    server-side Prisma database connection.
-5. After approval and successful rehearsal, promote the reviewed PostgreSQL
-   schema and migration directory to the runtime Prisma paths in a separate,
-   reviewable commit. Do not mix SQLite and PostgreSQL SQL in one migration chain.
+5. The default Prisma schema and migration directory are PostgreSQL-only. The
+   test command explicitly generates the archived SQLite client before running
+   the SQLite regression suite; the production build regenerates PostgreSQL.
 
 ## Proposed record transfer
 
@@ -98,7 +100,7 @@ Before any Supabase write:
 4. Rehearse migrations and the data import against a disposable local PostgreSQL
    database or disposable Supabase branch, never the production project.
 5. Run `prisma migrate status` and verify an empty diff between the rehearsal
-   database and `prisma/postgresql/schema.prisma`.
+   database and `prisma/schema.prisma`.
 6. Compare every table count. Expected source total is 49 rows; expected target
    total is 45 after excluding one expired session and three expired throttles.
 7. Run PostgreSQL foreign-key and uniqueness checks, including one active match

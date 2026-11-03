@@ -110,10 +110,11 @@ def main() -> None:
             extra = sorted(actual_tables - set(TABLE_ORDER))
             raise SystemExit(f"Unexpected table inventory; missing={missing}, extra={extra}")
 
+        snapshot_created_at = dt.datetime.now(dt.timezone.utc)
         snapshot: dict[str, Any] = {
             "formatVersion": 1,
             "sourceSha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-            "createdAt": dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+            "createdAt": snapshot_created_at.isoformat().replace("+00:00", "Z"),
             "tableOrder": TABLE_ORDER,
             "tables": {},
         }
@@ -136,6 +137,16 @@ def main() -> None:
                 )
             snapshot["tables"][table] = {"columns": columns, "rows": rows}
             counts[table] = len(rows)
+
+        expected_import_counts = dict(counts)
+        for ephemeral_table in ("AuthSession", "AuthThrottle"):
+            expected_import_counts[ephemeral_table] = sum(
+                1
+                for row in snapshot["tables"][ephemeral_table]["rows"]
+                if dt.datetime.fromisoformat(row["expiresAt"].replace("Z", "+00:00"))
+                > snapshot_created_at
+            )
+        snapshot["expectedImportCounts"] = expected_import_counts
 
         users = snapshot["tables"]["User"]["rows"]
         manager_matches = [
@@ -167,6 +178,8 @@ def main() -> None:
         print(f"SNAPSHOT_SHA256={hashlib.sha256(payload.encode('utf-8')).hexdigest()}")
         print(f"TABLE_COUNT={len(TABLE_ORDER)}")
         print(f"TOTAL_ROWS={sum(counts.values())}")
+        print(f"EXPECTED_IMPORT_ROWS={sum(expected_import_counts.values())}")
+        print(f"EXCLUDED_EXPIRED_AUTH_ROWS={sum(counts.values()) - sum(expected_import_counts.values())}")
         for table in TABLE_ORDER:
             print(f"ROWS_{table}={counts[table]}")
         print("PRODUCTION_STORE_MANAGER_VALID=YES")
