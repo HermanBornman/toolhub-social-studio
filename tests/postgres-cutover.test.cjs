@@ -10,6 +10,7 @@ test("production Prisma runtime uses PostgreSQL and a direct migration URL", () 
   assert.match(lock, /provider\s*=\s*"postgresql"/);
   assert.equal(fs.existsSync("prisma/migrations/202611030001_postgresql_baseline/migration.sql"), true);
   assert.equal(fs.existsSync("prisma/migrations/202611030002_lock_down_data_api/migration.sql"), true);
+  assert.equal(fs.existsSync("prisma/migrations/202611030003_lock_prisma_migration_history/migration.sql"), true);
 });
 
 test("SQLite remains isolated to the explicit regression schema", () => {
@@ -36,4 +37,17 @@ test("remote snapshot import requires strict CA and hostname verification", () =
   assert.match(importer, /rejectUnauthorized:\s*true/);
   assert.match(importer, /servername:\s*target\.hostname/);
   assert.doesNotMatch(importer, /rejectUnauthorized:\s*false/);
+});
+
+test("Prisma migration history is locked down without revoking its owner", () => {
+  const migration = fs.readFileSync(
+    "prisma/migrations/202611030003_lock_prisma_migration_history/migration.sql",
+    "utf8",
+  );
+  assert.match(migration, /ALTER TABLE "public"\."_prisma_migrations" ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration, /REVOKE ALL PRIVILEGES[^;]+FROM PUBLIC/);
+  assert.match(migration, /REVOKE ALL PRIVILEGES[^;]+FROM anon/);
+  assert.match(migration, /REVOKE ALL PRIVILEGES[^;]+FROM authenticated/);
+  assert.doesNotMatch(migration, /FORCE ROW LEVEL SECURITY/);
+  assert.doesNotMatch(migration, /FROM postgres/);
 });
