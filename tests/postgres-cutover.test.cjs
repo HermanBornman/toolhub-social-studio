@@ -28,3 +28,12 @@ test("test and production scripts generate the correct Prisma client", () => {
   assert.match(pkg.scripts["db:setup"], /prisma migrate deploy/);
   assert.doesNotMatch(pkg.scripts["db:setup"], /db push/);
 });
+
+test("remote snapshot import requires strict CA and hostname verification", () => {
+  const importer = fs.readFileSync("scripts/import-postgres-snapshot.cjs", "utf8");
+  assert.match(importer, /process\.env\.MIGRATION_SSL_ROOT_CERT/);
+  assert.match(importer, /Remote targets require MIGRATION_SSL_ROOT_CERT/);
+  assert.match(importer, /rejectUnauthorized:\s*true/);
+  assert.match(importer, /servername:\s*target\.hostname/);
+  assert.doesNotMatch(importer, /rejectUnauthorized:\s*false/);
+});

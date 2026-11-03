@@ -42,6 +42,44 @@ function isLoopback(hostname) {
   return hostname === "localhost" || hostname === "::1" || net.isIP(hostname) === 4 && hostname.startsWith("127.");
 }
 
+function decodeUrlComponent(value, label) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    fail(`Invalid percent-encoding in PostgreSQL ${label}`);
+  }
+}
+
+function clientConfig(target) {
+  const config = {
+    host: target.hostname,
+    port: target.port ? Number(target.port) : 5432,
+    user: decodeUrlComponent(target.username, "username"),
+    password: decodeUrlComponent(target.password, "password"),
+    database: decodeUrlComponent(target.pathname.slice(1), "database"),
+    application_name: "toolhub_migration_import",
+  };
+
+  const timeoutSeconds = Number(target.searchParams.get("connect_timeout"));
+  if (Number.isFinite(timeoutSeconds) && timeoutSeconds > 0) {
+    config.connectionTimeoutMillis = timeoutSeconds * 1000;
+  }
+
+  if (!isLoopback(target.hostname)) {
+    const certificatePath = process.env.MIGRATION_SSL_ROOT_CERT;
+    if (!certificatePath) fail("Remote targets require MIGRATION_SSL_ROOT_CERT");
+    const ca = fs.readFileSync(certificatePath, "utf8");
+    if (!ca.includes("-----BEGIN CERTIFICATE-----")) fail("Invalid migration TLS root certificate");
+    config.ssl = {
+      ca,
+      rejectUnauthorized: true,
+      servername: target.hostname,
+    };
+  }
+
+  return config;
+}
+
 function activeRows(table, rows, now) {
   if (table !== "AuthSession" && table !== "AuthThrottle") return rows;
   return rows.filter((row) => new Date(row.expiresAt).getTime() > now);
@@ -78,7 +116,7 @@ async function main() {
     });
   }
 
-  const client = new Client({ connectionString, application_name: "toolhub_migration_import" });
+  const client = new Client(clientConfig(target));
   await client.connect();
   try {
     await client.query("BEGIN");
