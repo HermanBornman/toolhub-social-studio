@@ -15,7 +15,6 @@
     "db:status": "prisma migrate status"
   },
   "dependencies": {
-    "@next/swc-win32-x64-msvc": "15.5.25",
     "@prisma/client": "6.16.2",
     "@supabase/supabase-js": "2.116.0",
     "html-to-image": "1.11.13",
@@ -47,6 +46,6 @@
     "seed": "node prisma/seed.cjs"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": "24.x"
   }
 }

@@ -30,6 +30,15 @@ test("test and production scripts generate the correct Prisma client", () => {
   assert.doesNotMatch(pkg.scripts["db:setup"], /db push/);
 });
 
+test("production dependencies remain cross-platform and pin the Vercel Node major", () => {
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+  assert.equal(pkg.engines.node, "24.x");
+  assert.equal(pkg.dependencies["@next/swc-win32-x64-msvc"], undefined);
+  assert.equal(lock.packages[""].dependencies["@next/swc-win32-x64-msvc"], undefined);
+  assert.equal(lock.packages["node_modules/@next/swc-win32-x64-msvc"].optional, true);
+});
+
 test("remote snapshot import requires strict CA and hostname verification", () => {
   const importer = fs.readFileSync("scripts/import-postgres-snapshot.cjs", "utf8");
   assert.match(importer, /process\.env\.MIGRATION_SSL_ROOT_CERT/);
