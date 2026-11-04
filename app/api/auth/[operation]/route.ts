@@ -9,6 +9,12 @@ export const runtime = "nodejs";
 const emailSchema = z.string().trim().email().max(254).transform(value => value.toLowerCase());
 const passwordSchema = z.string().min(12).max(128);
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
+const otpRequestReply = () => reply({ ok: true, message: "If this mobile number is eligible, a login code will arrive shortly." });
+function safeOtpFailureCode(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error ? (error as { code?: unknown }).code : undefined;
+  if (typeof code === "string" && /^P\d{4}$/.test(code)) return code;
+  return error instanceof Error && error.message === "UNAUTHENTICATED" ? "NOT_COMPLETED" : "INTERNAL";
+}
 
 // Intentionally public authentication endpoints, each POST is protected against CSRF.
 // No signup operation; all redirects are fixed local paths.
@@ -40,7 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ operat
       const normalized = normalizeSouthAfricanMobile(phone);
       await throttle("request-otp", normalized.mobileE164, 5);
       await authService().requestPhoneOtp(normalized.mobileE164);
-      return reply({ ok: true });
+      return otpRequestReply();
     }
     if (operation === "verify-otp") {
       const input = z.object({ phone: z.string().min(10).max(20), otp: z.string().regex(/^\d{6}$/), stayLoggedIn: z.boolean().default(false) }).parse(body);
@@ -84,7 +90,12 @@ export async function POST(request: Request, context: { params: Promise<{ operat
     if (reason === "AUTH_CONFIGURATION_ERROR") return reply({ error: "Authentication service is unavailable." }, 503);
     // Never reveal whether an account is absent, unlinked, disabled or has a wrong password.
     if (operation === "forgot-password") return reply({ message: "If an eligible account exists, a password reset email will arrive shortly." });
-    if (operation === "request-otp") return reply({ ok: true });
+    if (operation === "request-otp") {
+      // Keep the public response identical for absent, inactive and delivery-failed
+      // identities. Log only a non-sensitive operational category for diagnosis.
+      console.error(`[auth] OTP request did not complete (${safeOtpFailureCode(error)})`);
+      return otpRequestReply();
+    }
     const loginOperation = operation === "login" || operation === "request-otp" || operation === "verify-otp";
     return reply({ error: loginOperation ? "Unable to sign in. Check your details or contact your administrator." : "Unable to complete this request. Please try again or request a new link." }, 401);
   }

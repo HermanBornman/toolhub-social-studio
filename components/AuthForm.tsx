@@ -23,7 +23,7 @@ export function AuthForm({ mode }: { mode: "login" | "forgot-password" | "update
   async function otpSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
     try {
-      if (!otpSent) { await post("request-otp", { phone }); setOtpSent(true); setMessage("A login code has been sent to your mobile number."); }
+      if (!otpSent) { const result = await post("request-otp", { phone }); setOtpSent(true); setMessage(result.message); }
       else { await post("verify-otp", { phone, otp, stayLoggedIn }); window.location.assign("/"); }
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to sign in."); }
     finally { setBusy(false); }
