@@ -8,11 +8,19 @@ export function appOrigin() {
   if (url.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) throw new Error("UNAUTHENTICATED");
   return url.origin;
 }
+function vercelDeploymentOrigin() {
+  const hostname = process.env.VERCEL_URL;
+  if (!hostname || !/^[a-z0-9.-]+$/i.test(hostname)) return null;
+  const url = new URL(`https://${hostname}`);
+  return url.hostname === hostname.toLowerCase() && url.pathname === "/" ? url.origin : null;
+}
 export function requireSameOrigin(request: Request) {
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
   const origin = request.headers.get("origin");
-  // Never derive the allowed origin from a caller-controlled Host header.
-  if (!origin || origin !== appOrigin() || request.headers.get("sec-fetch-site") === "cross-site") throw new Error("CSRF_REJECTED");
+  // VERCEL_URL is platform-controlled and identifies this exact deployment. Never
+  // derive an allowed origin from the caller-controlled Host header or a wildcard.
+  const allowedOrigins = new Set([appOrigin(), vercelDeploymentOrigin()].filter((value): value is string => Boolean(value)));
+  if (!origin || !allowedOrigins.has(origin) || request.headers.get("sec-fetch-site") === "cross-site") throw new Error("CSRF_REJECTED");
 }
 export async function authBody(request: Request) {
   if (Number(request.headers.get("content-length") || 0) > 8192) throw new Error("INVALID_USER_INPUT");
