@@ -1,0 +1,11 @@
+.next
+.next-stale-*
+.vercel
+.env
+.env.local
+.env.*.local
+tmp
+*.db
+*.db-journal
+coverage
+.test-dist

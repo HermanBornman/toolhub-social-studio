@@ -1,6 +1,8 @@
 node_modules
 .npm-cache
 .next
+.next-stale-*
+.vercel
 .env
 prisma/dev.db
 prisma/dev.db-journal
