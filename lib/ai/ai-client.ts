@@ -83,8 +83,9 @@ export class OpenAIClient implements AIClient {
   async testConnection() {
     if (!this.apiKey || !this.model) return { ok: false, provider: "openai", model: this.model || "Not configured", message: "AI is not configured" };
     try {
-      await this.request({ model: this.model, store: false, input: "Reply with OK", max_output_tokens: 8 });
+      await this.request({ model: this.model, store: false, input: "Reply with OK", max_output_tokens: 16 });
       return { ok: true, provider: "openai", model: this.model, message: "Connection successful" };
     } catch { return { ok: false, provider: "openai", model: this.model, message: "AI provider unavailable" }; }
   }
 }
+
