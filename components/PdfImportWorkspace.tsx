@@ -59,6 +59,17 @@ export function PdfImportWorkspace({ initialImportId = "" }: { initialImportId?:
 
   const patchPage=(pageNumber:number, patch:Partial<ImportPage>)=>setPages(current=>current.map(page=>page.pageNumber===pageNumber?{...page,...patch}:page));
 
+  const analyzePage=async(targetImportId:string,page:ImportPage)=>{
+    patchPage(page.pageNumber,{status:"PENDING_ANALYSIS",error:undefined});
+    try {
+      const response=await fetch(`/api/pdf-imports/${targetImportId}/pages/${page.pageNumber}/analyze`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({embeddedText:page.embeddedText,pagePreviewDataUrl:page.preview})});
+      const result=await response.json();
+      if(!response.ok){patchPage(page.pageNumber,{status:"ANALYSIS_FAILED",error:result.error||"Analysis failed"});return;}
+      const extracted=JSON.parse(result.extractedPricingJson);
+      patchPage(page.pageNumber,{analysis:result.analysis,extractedPricing:extracted,pricing:defaultPricing(extracted),analysisMethod:result.analysisMethod,status:"REVIEW_REQUIRED"});
+    } catch { patchPage(page.pageNumber,{status:"ANALYSIS_FAILED",error:"Page analysis failed; other pages remain available."}); }
+  };
+
   const handlePdf=async(event:ChangeEvent<HTMLInputElement>)=>{
     const file=event.target.files?.[0]; if(!file)return; event.target.value="";
     if(file.type!=="application/pdf"){setNotice("Choose a PDF file.");return;}
@@ -81,12 +92,7 @@ export function PdfImportWorkspace({ initialImportId = "" }: { initialImportId?:
       setPages(rendered);setNotice(`PDF read successfully. Analyzing ${rendered.length} page${rendered.length===1?"":"s"}…`);
       for(const page of rendered){
         if(page.status==="ANALYSIS_FAILED")continue;
-        try {
-        const response=await fetch(`/api/pdf-imports/${metadata.id}/pages/${page.pageNumber}/analyze`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({embeddedText:page.embeddedText,pagePreviewDataUrl:page.preview})});
-        const result=await response.json();
-        if(!response.ok)patchPage(page.pageNumber,{status:"ANALYSIS_FAILED",error:result.error||"Analysis failed"});
-        else patchPage(page.pageNumber,{analysis:result.analysis,extractedPricing:JSON.parse(result.extractedPricingJson),pricing:defaultPricing(JSON.parse(result.extractedPricingJson)),analysisMethod:result.analysisMethod,status:"REVIEW_REQUIRED"});
-        } catch(error){patchPage(page.pageNumber,{status:"ANALYSIS_FAILED",error:"Page analysis failed; other pages remain available."});}
+        await analyzePage(metadata.id,page);
       }
       setNotice("Analysis complete. Review every page before selecting an image or generating a draft.");
     }catch(error){setNotice(error instanceof Error?error.message:"PDF import failed");}finally{setBusy(false);}
@@ -130,7 +136,7 @@ export function PdfImportWorkspace({ initialImportId = "" }: { initialImportId?:
       <div className="pdf-review-grid"><div className="pdf-visuals"><figure><img src={page.preview} alt={`Supplier PDF page ${page.pageNumber}`}/><figcaption>PDF page preview</figcaption></figure><div className="selected-images"><figure>{page.selectedImageDataUrl?<img src={page.selectedImageDataUrl} alt="Selected original product"/>:<ImagePlus/>}<figcaption>Selected product</figcaption></figure><figure className="transparent-thumb">{page.processedImageDataUrl?<img src={page.processedImageDataUrl} alt="Background-removed product"/>:<ScanText/>}<figcaption>Transparent PNG</figcaption></figure></div>
         {page.analysis&&<div className="image-actions"><button className="secondary-button" type="button" disabled={page.backgroundRemovalStatus==="PROCESSING"} onClick={()=>void processProduct(page)}>{page.backgroundRemovalStatus==="PROCESSING"?<Loader2 className="spin" size={16}/>:<ScanText size={16}/>}Select detected product & remove background</button><label className="secondary-button"><ImagePlus size={16}/>Replace product image<input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event)=>{const file=event.target.files?.[0];event.target.value="";if(file)void processProduct(page,file);}}/></label></div>}
       </div><div className="pdf-review-fields">{page.analysis?<>
-        <div className="analysis-method"><ShieldCheck size={16}/><span>{page.analysisMethod==="AI_VISION"?"Embedded text + OCR/visual layout analysis":"Embedded text fallback · manual visual review required"}</span></div>
+        <div className="analysis-method"><ShieldCheck size={16}/><span>{page.analysisMethod==="AI_VISION"?"Embedded text + OCR/visual layout analysis":"Embedded text fallback · manual visual review required"}</span><button className="secondary-button" type="button" disabled={page.status==="PENDING_ANALYSIS"} onClick={()=>void analyzePage(importId,page)}>{page.status==="PENDING_ANALYSIS"?<Loader2 className="spin" size={15}/>:<FileSearch size={15}/>}Re-run AI analysis</button></div>
         {FIELD_LABELS.filter(([key])=>key!=="nettPrice"&&key!=="promotionalPrice").map(([key,label])=><ReviewField key={key} label={label} field={page.analysis![key]} onChange={(value)=>updateField(page.pageNumber,key,value)}/>)}
         <label className="pdf-review-field"><span>Confirmed technical specifications</span><textarea rows={4} value={page.analysis.technicalSpecifications.map(item=>item.value).join("\n")} onChange={(event)=>updateList(page.pageNumber,"technicalSpecifications",event.target.value)}/></label>
         {page.analysis.sku.value === "Not found" && <label className="pricing-choice"><input type="checkbox" checked={!!page.analysis.skuNotFoundAcknowledged} onChange={e=>patchPage(page.pageNumber,{analysis:{...page.analysis!,skuNotFoundAcknowledged:e.target.checked},status:"REVIEW_REQUIRED"})}/>I acknowledge the SKU was not found; keep it unknown.</label>}
@@ -145,3 +151,4 @@ export function PdfImportWorkspace({ initialImportId = "" }: { initialImportId?:
     </section>)}</div>
   </div>;
 }
+
